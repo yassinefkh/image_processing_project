@@ -12,6 +12,8 @@ public:
     static void displayImage(const std::string& windowName, const cv::Mat& image);
     // convertir une image en niveaux de gris
     static cv::Mat convertToGrayscale(const cv::Mat& image);
+    // appliquer flou gaussien
+    static cv::Mat applyGaussianBlur(const cv::Mat& image, int kernelSize);
 };
 
 #endif 

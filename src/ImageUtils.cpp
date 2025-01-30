@@ -21,3 +21,9 @@ cv::Mat ImageUtils::convertToGrayscale(const cv::Mat& image) {
     cv::cvtColor(image, grayscaleImage, cv::COLOR_BGR2GRAY);
     return grayscaleImage;
 }
+
+cv::Mat ImageUtils::applyGaussianBlur(const cv::Mat& image, int kernelSize) {
+    cv::Mat blurredImage;
+    cv::GaussianBlur(image, blurredImage, cv::Size(kernelSize, kernelSize), 0);
+    return blurredImage;
+}
