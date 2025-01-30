@@ -59,11 +59,20 @@ cv::Mat ImageUtils::applyCanny(const cv::Mat& image, double threshold1, double t
 
 cv::Mat ImageUtils::applyDilation(const cv::Mat& image, int kernelSize) {
     cv::Mat dilatedImage;
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(kernelSize, kernelSize));
     
     cv::dilate(image, dilatedImage, kernel);
     
     return dilatedImage;
+}
+
+cv::Mat ImageUtils::applyOpening(const cv::Mat& image, int kernelSize) {
+    cv::Mat openedImage;
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
+
+    cv::morphologyEx(image, openedImage, cv::MORPH_OPEN, kernel);
+
+    return openedImage;
 }
 
 cv::Mat ImageUtils::applyErosion(const cv::Mat& image, int kernelSize) {
@@ -388,4 +397,229 @@ std::vector<cv::Vec4i> ImageUtils::mergeCloseParallelLines(const std::vector<cv:
     return mergedLines;
 }
 
+std::vector<cv::Vec4i> ImageUtils::sortLinesByLength(const std::vector<cv::Vec4i>& lines) {
+    std::vector<std::pair<cv::Vec4i, double>> lineLengths;
 
+    // Calcul de la longueur de chaque ligne
+    for (const auto& line : lines) {
+        double length = std::sqrt(std::pow(line[2] - line[0], 2) + std::pow(line[3] - line[1], 2));
+        lineLengths.push_back({line, length});
+    }
+
+    // Tri des lignes par longueur décroissante
+    std::sort(lineLengths.begin(), lineLengths.end(), 
+        [](const std::pair<cv::Vec4i, double>& a, const std::pair<cv::Vec4i, double>& b) {
+            return a.second > b.second;  // Tri décroissant
+        });
+
+    // Extraction des lignes triées
+    std::vector<cv::Vec4i> sortedLines;
+    for (const auto& pair : lineLengths) {
+        sortedLines.push_back(pair.first);
+    }
+
+    return sortedLines;
+}
+
+std::vector<cv::Vec4i> ImageUtils::filterShortLines(const std::vector<cv::Vec4i>& lines, double minLength) {
+    std::vector<cv::Vec4i> filteredLines;
+    for (const auto& line : lines) {
+        double length = std::sqrt(std::pow(line[2] - line[0], 2) + std::pow(line[3] - line[1], 2));
+        if (length >= minLength) {
+            filteredLines.push_back(line);
+        }
+    }
+    return filteredLines;
+}
+
+std::vector<cv::Vec4i> ImageUtils::mergeOverlappingLines(const std::vector<cv::Vec4i>& lines, double maxYDistance) {
+    std::vector<cv::Vec4i> mergedLines;
+    std::vector<bool> merged(lines.size(), false);
+
+    for (size_t i = 0; i < lines.size(); i++) {
+        if (merged[i]) continue;
+        cv::Vec4i currentLine = lines[i];
+        double yCurrent = (currentLine[1] + currentLine[3]) / 2.0;
+
+        for (size_t j = i + 1; j < lines.size(); j++) {
+            if (merged[j]) continue;
+            cv::Vec4i candidateLine = lines[j];
+            double yCandidate = (candidateLine[1] + candidateLine[3]) / 2.0;
+
+            if (std::abs(yCurrent - yCandidate) < maxYDistance) {
+                currentLine[0] = std::min(currentLine[0], candidateLine[0]);
+                currentLine[1] = std::min(currentLine[1], candidateLine[1]);
+                currentLine[2] = std::max(currentLine[2], candidateLine[2]);
+                currentLine[3] = std::max(currentLine[3], candidateLine[3]);
+                merged[j] = true;
+            }
+        }
+
+        mergedLines.push_back(currentLine);
+    }
+
+    return mergedLines;
+}
+
+
+std::vector<cv::Vec4i> ImageUtils::filterIrregularlySpacedLines(const std::vector<cv::Vec4i>& lines, double expectedSpacing) {
+    if (lines.empty()) return {};
+
+    std::vector<cv::Vec4i> sortedLines = lines;
+    std::sort(sortedLines.begin(), sortedLines.end(), [](const cv::Vec4i& a, const cv::Vec4i& b) {
+        return ((a[1] + a[3]) / 2.0) < ((b[1] + b[3]) / 2.0);
+    });
+
+    std::vector<cv::Vec4i> filteredLines;
+    filteredLines.push_back(sortedLines[0]);
+
+    for (size_t i = 1; i < sortedLines.size(); i++) {
+        double prevY = (sortedLines[i - 1][1] + sortedLines[i - 1][3]) / 2.0;
+        double currentY = (sortedLines[i][1] + sortedLines[i][3]) / 2.0;
+        double spacing = std::abs(currentY - prevY);
+
+        if (spacing > expectedSpacing * 0.5 && spacing < expectedSpacing * 1.5) {
+            filteredLines.push_back(sortedLines[i]);
+        }
+    }
+
+    return filteredLines;
+}
+
+
+cv::Mat ImageUtils::equalizeHistogram(const cv::Mat& image) {
+    if (image.channels() != 1) {
+        throw std::invalid_argument("L'image doit être en niveaux de gris.");
+    }
+
+    cv::Mat equalizedImage;
+    cv::equalizeHist(image, equalizedImage);
+
+    return equalizedImage;
+}
+
+void ImageUtils::computeHorizontalProjectionHistogram(const cv::Mat& binaryImage) {
+    if (binaryImage.empty() || binaryImage.channels() != 1) {
+        throw std::invalid_argument("L'image doit être binaire (niveaux de gris).");
+    }
+
+    std::vector<int> projection(binaryImage.rows, 0);
+
+    for (int y = 0; y < binaryImage.rows; ++y) {
+        projection[y] = cv::countNonZero(binaryImage.row(y));
+    }
+
+    int width = 400;  
+    int height = binaryImage.rows;
+    cv::Mat histogram(height, width, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    double maxVal = *std::max_element(projection.begin(), projection.end());
+
+    for (int y = 0; y < height; ++y) {
+        int barLength = static_cast<int>((projection[y] / maxVal) * (width - 10));
+        cv::line(histogram, cv::Point(0, y), cv::Point(barLength, y), cv::Scalar(255, 255, 255), 1);
+    }
+
+    cv::flip(histogram, histogram, 0);
+    cv::imshow("Histogramme de Projection Horizontale", histogram);
+    cv::waitKey(0);
+}
+
+cv::Mat ImageUtils::adjustContrastGamma(const cv::Mat& image, double gamma) {
+    cv::Mat result;
+    cv::Mat imgFloat;
+    image.convertTo(imgFloat, CV_32F, 1.0 / 255.0);
+    cv::pow(imgFloat, gamma, imgFloat);
+    imgFloat.convertTo(result, CV_8U, 255.0);
+    return result;
+}
+
+std::pair<cv::Mat, int> ImageUtils::detectTransitionsAndCountPairs(const cv::Mat& image, int xCoord) {
+    cv::Mat outputImage = image.clone();
+    if (outputImage.channels() == 1) {
+        cv::cvtColor(outputImage, outputImage, cv::COLOR_GRAY2BGR);
+    }
+
+    int rows = image.rows;
+    cv::line(outputImage, cv::Point(xCoord, 0), cv::Point(xCoord, rows), cv::Scalar(0, 255, 0), 1);
+
+    int numPairs = 0;
+    bool lastWasRed = false; 
+
+    for (int y = rows - 2; y >= 0; --y) {
+        uchar currentPixel = image.at<uchar>(y, xCoord);
+        uchar nextPixel = image.at<uchar>(y + 1, xCoord);
+
+        if (currentPixel != nextPixel) {
+            cv::Scalar color;
+            bool isRed = false;
+
+            if (currentPixel < nextPixel) { 
+                color = cv::Scalar(0, 0, 255);
+                isRed = true;
+            } else { 
+                color = cv::Scalar(255, 0, 0);
+                isRed = false;
+            }
+
+            cv::drawMarker(outputImage, cv::Point(xCoord, y), color, cv::MARKER_CROSS, 15, 1);
+
+            if (!isRed && lastWasRed) {  
+                numPairs++;
+            }
+
+            lastWasRed = isRed; 
+        }
+    }
+
+    return {outputImage, numPairs};
+}
+
+
+
+int ImageUtils::estimateStepCount(const std::vector<int>& transitions) {
+    std::map<int, int> freq;
+    for (int t : transitions) {
+        freq[t]++;
+    }
+
+    int maxCount = 0;
+    int probableSteps = -1;
+    for (const auto& [value, count] : freq) {
+        if (count > maxCount) {
+            maxCount = count;
+            probableSteps = value;
+        }
+    }
+
+    return probableSteps;
+}
+
+
+
+std::pair<cv::Mat, std::vector<int>> ImageUtils::scanImageForStepPatterns(const cv::Mat& image, int stride) {
+    cv::Mat outputImage = image.clone();
+    
+    if (outputImage.channels() == 1) {
+        cv::cvtColor(outputImage, outputImage, cv::COLOR_GRAY2BGR);
+    }
+
+    std::vector<int> transitionCounts;
+
+    for (int x = 0; x < image.cols; x += stride) {  
+        auto [annotatedColumn, numPairs] = ImageUtils::detectTransitionsAndCountPairs(image, x);
+        
+        transitionCounts.push_back(numPairs);
+
+        cv::line(outputImage, cv::Point(x, 0), cv::Point(x, image.rows), cv::Scalar(0, 255, 0), 1);
+
+        for (int y = 0; y < annotatedColumn.rows; ++y) {
+            cv::Vec3b pixel = annotatedColumn.at<cv::Vec3b>(y, x);
+            if (pixel == cv::Vec3b(0, 0, 255) || pixel == cv::Vec3b(255, 0, 0)) {
+                cv::drawMarker(outputImage, cv::Point(x, y), pixel, cv::MARKER_CROSS, 10, 1);
+            }
+        }
+    }
+
+    return {outputImage, transitionCounts};
+}

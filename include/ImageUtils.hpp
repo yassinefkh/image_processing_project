@@ -15,11 +15,22 @@ public:
     static cv::Mat convertToGrayscale(const cv::Mat& image);
     static cv::Mat applyGaussianBlur(const cv::Mat& image, int kernelSize);
     static cv::Mat applyOtsuThreshold(const cv::Mat& image);
+    static cv::Mat equalizeHistogram(const cv::Mat& image);
+    static cv::Mat adjustContrastGamma(const cv::Mat& image, double gamma);
 
     // === Détection des contours ===
     static cv::Mat applyCanny(const cv::Mat& image, double threshold1, double threshold2);
     static cv::Mat applyDilation(const cv::Mat& image, int kernelSize);
     static cv::Mat applyErosion(const cv::Mat& image, int kernelSize);
+    static cv::Mat applyOpening(const cv::Mat& image, int kernelSize);
+    static void computeHorizontalProjectionHistogram(const cv::Mat& binaryImage);
+    static std::pair<cv::Mat, int> detectTransitionsAndCountPairs(const cv::Mat& image, int xCoord);
+    static std::pair<cv::Mat, std::vector<int>> scanImageForStepPatterns(const cv::Mat& image, int stride);
+
+
+
+    static int estimateStepCount(const std::vector<int>& transitions);
+
 
 
     // === Détection et traitement des lignes ===
@@ -32,6 +43,10 @@ public:
     static std::vector<cv::Vec4i> fitStairModel(const std::vector<cv::Vec4i>& lines, double avgSpacing);
     static cv::Mat computeVanishingPoints(const std::vector<cv::Vec4i>& lines, cv::Mat& image);
     static std::vector<cv::Vec4i> mergeCloseParallelLines(const std::vector<cv::Vec4i>& lines, double maxYDistance);
+    static std::vector<cv::Vec4i> sortLinesByLength(const std::vector<cv::Vec4i>& lines);
+    static std::vector<cv::Vec4i> mergeOverlappingLines(const std::vector<cv::Vec4i>& lines, double maxYDistance);
+    static std::vector<cv::Vec4i> filterIrregularlySpacedLines(const std::vector<cv::Vec4i>& lines, double expectedSpacing);
+    static std::vector<cv::Vec4i> filterShortLines(const std::vector<cv::Vec4i>& lines, double minLength);
 
     
     // === Visualisation ===

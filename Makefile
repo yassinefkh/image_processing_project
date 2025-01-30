@@ -2,7 +2,7 @@
 CXX = g++
 
 # Options de compilation
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++17 -Wall
 
 # Vérifier si Conda est activé, sinon utiliser `pkg-config`
 ifdef CONDA_PREFIX

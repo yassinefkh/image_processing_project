@@ -6,50 +6,57 @@
 
 int main() {
     try {
-      
         cv::Mat image = ImageUtils::loadImage(INPUT_IMAGE_PATH);
         ImageUtils::displayImage("Image originale", image);
 
-        // Conversion en niveaux de gris 
         cv::Mat grayscaleImage = ImageUtils::convertToGrayscale(image);
         ImageUtils::displayImage("Image en niveaux de gris", grayscaleImage);
 
-        // Floutage Gaussien 
-        cv::Mat blurredImage = ImageUtils::applyGaussianBlur(grayscaleImage, 5);
+        cv::Mat equalizedImage = ImageUtils::equalizeHistogram(grayscaleImage);
+        ImageUtils::displayImage("Image égalisée", equalizedImage);
+
+        cv::Mat blurredImage = ImageUtils::applyGaussianBlur(equalizedImage, 3);
         ImageUtils::displayImage("Image avec flou gaussien", blurredImage);
 
-        // Détection des contours avec Canny 
-        cv::Mat edges = ImageUtils::applyCanny(blurredImage, 50, 150);
+        cv::Mat edges = ImageUtils::applyCanny(blurredImage, 150, 300);
         ImageUtils::displayImage("Contours détectés avec Canny", edges);
 
-        // Dilatation pour renforcer les contours 
-        cv::Mat dilatedEdges = ImageUtils::applyDilation(edges, 2);
-        ImageUtils::displayImage("Contours épaissis avec dilatation", dilatedEdges);
+        cv::Mat openedEdges = ImageUtils::applyOpening(edges, 1);
+        ImageUtils::displayImage("Contours après ouverture", openedEdges);
 
-        //  Détection des lignes avec la Transformée de Hough 
         std::vector<cv::Vec4i> detectedLines;
-        cv::Mat houghImage = ImageUtils::applyHoughTransform(dilatedEdges, detectedLines);
+        cv::Mat houghImage = ImageUtils::applyHoughTransform(openedEdges, detectedLines);
         ImageUtils::displayImage("Lignes détectées avec Hough", houghImage);
 
-        // Filtrage des lignes horizontales 
         std::vector<cv::Vec4i> horizontalLines = ImageUtils::filterHorizontalLines(detectedLines);
-        cv::Mat horizontalImage = ImageUtils::drawLabeledLines(dilatedEdges, horizontalLines);
+        cv::Mat horizontalImage = ImageUtils::drawLabeledLines(openedEdges, horizontalLines);
         ImageUtils::displayImage("Lignes horizontales détectées", horizontalImage);
 
-        // Fusion des lignes proches d'une même marche 
-        double seuilFusion = 5.0;  
-        std::vector<cv::Vec4i> mergedLines = ImageUtils::mergeCloseLines(horizontalLines, seuilFusion);
-        cv::Mat mergedImage = ImageUtils::drawLabeledLines(dilatedEdges, mergedLines);
-        ImageUtils::displayImage("Lignes fusionnées (bords des marches)", mergedImage);
+        std::vector<cv::Vec4i> filteredLines = ImageUtils::filterShortLines(horizontalLines, 50);
+        std::vector<cv::Vec4i> mergedLines = ImageUtils::mergeOverlappingLines(filteredLines, 10);
+        std::vector<cv::Vec4i> cleanedLines = ImageUtils::filterIrregularlySpacedLines(mergedLines, 20);
 
-        // Sélection des marches par espacement régulier 
-        double avgSpacing = 0.0;
-        std::vector<cv::Vec4i> stairLines = ImageUtils::filterRegularlySpacedLines(mergedLines, avgSpacing);
-        cv::Mat finalImage = ImageUtils::drawLabeledLines(dilatedEdges, stairLines);
+        cv::Mat finalImage = ImageUtils::drawLabeledLines(openedEdges, cleanedLines);
         ImageUtils::displayImage("Marches détectées", finalImage);
 
-        std::cout << "Nombre de marches détectées : " << stairLines.size() << std::endl;
-        std::cout << "Espacement moyen entre les marches : " << avgSpacing << " pixels" << std::endl;
+
+
+        cv::Mat blurredImageBis = ImageUtils::applyGaussianBlur(grayscaleImage, 3);
+        ImageUtils::displayImage("Image avec flou gaussien", blurredImageBis);
+
+
+        cv::Mat quantizedImage = ImageUtils::quantize(blurredImageBis, 2);
+        ImageUtils::displayImage("Image quantifiée", quantizedImage);
+
+        int stride = 10;  // On analyse tous les 10 pixels en largeur
+        auto [scanImage, stepPatterns] = ImageUtils::scanImageForStepPatterns(quantizedImage, stride);
+
+        cv::imshow("Analyse complète des motifs de marches", scanImage);
+        std::cout << "Nombre de paires détectées par colonne : " << std::endl;
+        for (size_t i = 0; i < stepPatterns.size(); ++i) {
+            std::cout << "Colonne " << i * stride << " : " << stepPatterns[i] << " paires" << std::endl;
+        }
+
 
         cv::waitKey(0);
         cv::destroyAllWindows();
