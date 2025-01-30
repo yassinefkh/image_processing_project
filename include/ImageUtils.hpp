@@ -14,6 +14,8 @@ public:
     static cv::Mat convertToGrayscale(const cv::Mat& image);
     // appliquer flou gaussien
     static cv::Mat applyGaussianBlur(const cv::Mat& image, int kernelSize);
+    // appliquer seuillage d'otsu
+    static cv::Mat applyOtsuThreshold(const cv::Mat& image);
 };
 
 #endif 

@@ -13,6 +13,12 @@ int main() {
         cv::Mat blurredImage = ImageUtils::applyGaussianBlur(grayscaleImage, GAUSSIAN_BLUR_KERNEL_SIZE);
         ImageUtils::displayImage("Image avec flou gaussien", blurredImage);
 
+        cv::Mat otsuThresholdedImage = ImageUtils::applyOtsuThreshold(blurredImage);
+        ImageUtils::displayImage("Image seuillée avec Otsu", otsuThresholdedImage);
+
+        cv::waitKey(0); 
+        cv::destroyAllWindows(); 
+
         std::cout << "Traitement terminé avec succès." << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;
