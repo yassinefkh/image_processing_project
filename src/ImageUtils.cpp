@@ -39,6 +39,8 @@ cv::Mat ImageUtils::applyOtsuThreshold(const cv::Mat& image) {
     }
 
     cv::Mat thresholdedImage;
-    cv::threshold(image, thresholdedImage, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    //cv::threshold(image, thresholdedImage, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+    cv::threshold(image, thresholdedImage, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+
     return thresholdedImage;
 }
