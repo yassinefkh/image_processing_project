@@ -2,6 +2,7 @@
 #include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/constants.hpp"
 #include <opencv2/opencv.hpp>
 #include <stdexcept>
+#include <vector>
 
 cv::Mat ImageUtils::loadImage(const std::string& path) {
     cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
@@ -53,6 +54,16 @@ cv::Mat ImageUtils::applyCanny(const cv::Mat& image, double threshold1, double t
     return edges;
 }
 
+cv::Mat ImageUtils::applyDilation(const cv::Mat& image, int kernelSize) {
+    cv::Mat dilatedImage;
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(kernelSize, kernelSize));
+    
+    cv::dilate(image, dilatedImage, kernel);
+    
+    return dilatedImage;
+}
+
+
 cv::Mat ImageUtils::applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines) {
     cv::Mat houghImage;
     cv::cvtColor(edges, houghImage, cv::COLOR_GRAY2BGR); 
@@ -68,3 +79,46 @@ cv::Mat ImageUtils::applyHoughTransform(const cv::Mat& edges, std::vector<cv::Ve
 
     return houghImage;
 }
+
+
+cv::Point2f computeIntersection(cv::Vec4i line1, cv::Vec4i line2) {
+    float x1 = line1[0], y1 = line1[1], x2 = line1[2], y2 = line1[3];
+    float x3 = line2[0], y3 = line2[1], x4 = line2[2], y4 = line2[3];
+    // calcul des coefficients des droites (y = ax + b)
+    float denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (denom == 0) return cv::Point2f(-1, -1); // lignes parallèles
+
+    float px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom;
+    float py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom;
+    
+    return cv::Point2f(px, py);
+}
+
+cv::Mat ImageUtils::computeVanishingPoints(const std::vector<cv::Vec4i>& lines, cv::Mat& image) {
+    cv::Mat outputImage = image.clone();
+    std::vector<cv::Point2f> vanishingPoints;
+
+    for (size_t i = 0; i < lines.size(); i++) {
+        for (size_t j = i + 1; j < lines.size(); j++) {
+            cv::Point2f intersection = computeIntersection(lines[i], lines[j]);
+
+            if (intersection.x >= 0 && intersection.y >= 0 && intersection.x < image.cols && intersection.y < image.rows) {
+                vanishingPoints.push_back(intersection);
+                cv::circle(outputImage, intersection, 5, cv::Scalar(0, 255, 0), -1); 
+                cv::line(outputImage, cv::Point(lines[i][0], lines[i][1]), intersection, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+                cv::line(outputImage, cv::Point(lines[i][2], lines[i][3]), intersection, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+                
+                cv::line(outputImage, cv::Point(lines[j][0], lines[j][1]), intersection, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+                cv::line(outputImage, cv::Point(lines[j][2], lines[j][3]), intersection, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+            }
+        }
+    }
+
+    std::cout << "Points de fuite détectés : " << std::endl;
+    for (const auto& vp : vanishingPoints) {
+        std::cout << "Point : (" << vp.x << ", " << vp.y << ")" << std::endl;
+    }
+
+    return outputImage;
+}
+

@@ -20,6 +20,11 @@ public:
     static cv::Mat applyCanny(const cv::Mat& image, double threshold1, double threshold2);
     // appliquer la transformée de Hough pour détecter des lignes
     static cv::Mat applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines);
+    // calcul des points de fuite
+    static cv::Mat computeVanishingPoints(const std::vector<cv::Vec4i>& lines, cv::Mat& image);
+    // dilatation
+    static cv::Mat applyDilation(const cv::Mat& image, int kernelSize);
+
 };
 
 #endif

@@ -7,7 +7,7 @@
 const std::string INPUT_IMAGE_PATH = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/input/img2.jpg";
 
 // taille du noyau pour le flou gaussien (doit être impair)
-const int GAUSSIAN_BLUR_KERNEL_SIZE = 5;
+const int GAUSSIAN_BLUR_KERNEL_SIZE = 15;
 
 // seuils pour Canny
 const int CANNY_THRESHOLD1 = 50;

@@ -18,10 +18,16 @@ int main() {
 
         cv::Mat edges = ImageUtils::applyCanny(otsuThresholdedImage, 50, 150);
         ImageUtils::displayImage("Contours détectés avec Canny", edges);
+
+        cv::Mat dilatedEdges = ImageUtils::applyDilation(edges, 10);
+        ImageUtils::displayImage("Contours épaissis avec dilatation", dilatedEdges);
         
         std::vector<cv::Vec4i> detectedLines;
-        cv::Mat houghImage = ImageUtils::applyHoughTransform(edges, detectedLines);
+        cv::Mat houghImage = ImageUtils::applyHoughTransform(dilatedEdges, detectedLines);
         ImageUtils::displayImage("Lignes détectées avec Hough", houghImage);
+
+        cv::Mat vanishingPointsImage = ImageUtils::computeVanishingPoints(detectedLines, houghImage);
+        ImageUtils::displayImage("Points de fuite détectés", vanishingPointsImage);
 
         cv::waitKey(0); 
         cv::destroyAllWindows(); 
