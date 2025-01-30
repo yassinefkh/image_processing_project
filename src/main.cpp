@@ -16,6 +16,13 @@ int main() {
         cv::Mat otsuThresholdedImage = ImageUtils::applyOtsuThreshold(blurredImage);
         ImageUtils::displayImage("Image seuillée avec Otsu", otsuThresholdedImage);
 
+        cv::Mat edges = ImageUtils::applyCanny(otsuThresholdedImage, 50, 150);
+        ImageUtils::displayImage("Contours détectés avec Canny", edges);
+        
+        std::vector<cv::Vec4i> detectedLines;
+        cv::Mat houghImage = ImageUtils::applyHoughTransform(edges, detectedLines);
+        ImageUtils::displayImage("Lignes détectées avec Hough", houghImage);
+
         cv::waitKey(0); 
         cv::destroyAllWindows(); 
 

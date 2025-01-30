@@ -1,4 +1,5 @@
 #include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
+#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/constants.hpp"
 #include <opencv2/opencv.hpp>
 #include <stdexcept>
 
@@ -43,4 +44,27 @@ cv::Mat ImageUtils::applyOtsuThreshold(const cv::Mat& image) {
     cv::threshold(image, thresholdedImage, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
 
     return thresholdedImage;
+}
+
+
+cv::Mat ImageUtils::applyCanny(const cv::Mat& image, double threshold1, double threshold2) {
+    cv::Mat edges;
+    cv::Canny(image, edges, threshold1, threshold2);
+    return edges;
+}
+
+cv::Mat ImageUtils::applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines) {
+    cv::Mat houghImage;
+    cv::cvtColor(edges, houghImage, cv::COLOR_GRAY2BGR); 
+
+    cv::HoughLinesP(edges, detectedLines, HOUGH_RHO, HOUGH_THETA, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP);
+    
+    std::cout << "Lignes détectées (x1, y1, x2, y2) : " << std::endl;
+    for (size_t i = 0; i < detectedLines.size(); i++) {
+        cv::Vec4i l = detectedLines[i];
+        cv::line(houghImage, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0, 0, 255), 2, cv::LINE_AA);
+        std::cout << "Ligne " << i + 1 << ": (" << l[0] << ", " << l[1] << ") -> (" << l[2] << ", " << l[3] << ")" << std::endl;
+    }
+
+    return houghImage;
 }

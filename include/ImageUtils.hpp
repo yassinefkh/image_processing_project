@@ -12,10 +12,14 @@ public:
     static void displayImage(const std::string& windowName, const cv::Mat& image);
     // convertir une image en niveaux de gris
     static cv::Mat convertToGrayscale(const cv::Mat& image);
-    // appliquer flou gaussien
+    // appliquer un flou gaussien
     static cv::Mat applyGaussianBlur(const cv::Mat& image, int kernelSize);
-    // appliquer seuillage d'otsu
+    // appliquer le seuillage d'Otsu
     static cv::Mat applyOtsuThreshold(const cv::Mat& image);
+    // appliquer la détection des contours avec Canny
+    static cv::Mat applyCanny(const cv::Mat& image, double threshold1, double threshold2);
+    // appliquer la transformée de Hough pour détecter des lignes
+    static cv::Mat applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines);
 };
 
-#endif 
+#endif
