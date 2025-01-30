@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <stdexcept>
 #include <vector>
+#include <cmath>
 
 cv::Mat ImageUtils::loadImage(const std::string& path) {
     cv::Mat image = cv::imread(path, cv::IMREAD_COLOR);
@@ -122,3 +123,21 @@ cv::Mat ImageUtils::computeVanishingPoints(const std::vector<cv::Vec4i>& lines, 
     return outputImage;
 }
 
+std::vector<cv::Vec4i> ImageUtils::filterHorizontalLines(const std::vector<cv::Vec4i>& lines) {
+    std::vector<cv::Vec4i> horizontalLines;
+
+    for (const auto& line : lines) {
+        double dx = line[2] - line[0];  // x2 - x1
+        double dy = line[3] - line[1];  // y2 - y1
+
+        if (dx == 0) continue;  
+
+        double angle = std::atan2(std::abs(dy), std::abs(dx)) * 180.0 / CV_PI;  
+
+        if (angle < ANGLE_THRESHOLD) { // ici on verifei si l'angle est horizontal
+            horizontalLines.push_back(line);
+        }
+    }
+
+    return horizontalLines;
+}

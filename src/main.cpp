@@ -26,6 +26,13 @@ int main() {
         cv::Mat houghImage = ImageUtils::applyHoughTransform(dilatedEdges, detectedLines);
         ImageUtils::displayImage("Lignes détectées avec Hough", houghImage);
 
+        std::vector<cv::Vec4i> horizontalLines = ImageUtils::filterHorizontalLines(detectedLines);
+        
+        for (const auto& line : horizontalLines) {
+            cv::line(houghImage, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(255, 0, 0), 2);
+        }
+        ImageUtils::displayImage("Lignes horizontales filtrées", houghImage);
+                
         cv::Mat vanishingPointsImage = ImageUtils::computeVanishingPoints(detectedLines, houghImage);
         ImageUtils::displayImage("Points de fuite détectés", vanishingPointsImage);
 

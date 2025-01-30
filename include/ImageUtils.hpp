@@ -24,7 +24,10 @@ public:
     static cv::Mat computeVanishingPoints(const std::vector<cv::Vec4i>& lines, cv::Mat& image);
     // dilatation
     static cv::Mat applyDilation(const cv::Mat& image, int kernelSize);
+    // filtrer les lignes pour ne garder que les horizontales
+    static std::vector<cv::Vec4i> filterHorizontalLines(const std::vector<cv::Vec4i>& lines);
 
+   
 };
 
 #endif

@@ -20,4 +20,6 @@ const int HOUGH_THRESHOLD = 50;         // Nombre minimum d'intersections pour d
 const int HOUGH_MIN_LINE_LENGTH = 50;   // Longueur minimale pour une ligne
 const int HOUGH_MAX_LINE_GAP = 10;      // Espace maximal entre segments pour fusionner en une ligne
 
+const double ANGLE_THRESHOLD = 10.0;  // seuil en degrés pour filtrer les droites
+
 #endif
