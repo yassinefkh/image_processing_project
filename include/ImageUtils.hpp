@@ -26,6 +26,9 @@ public:
     static void computeHorizontalProjectionHistogram(const cv::Mat& binaryImage);
     static std::pair<cv::Mat, int> detectTransitionsAndCountPairs(const cv::Mat& image, int xCoord);
     static std::pair<cv::Mat, std::vector<int>> scanImageForStepPatterns(const cv::Mat& image, int stride);
+    static std::pair<int, int> detectStaircaseRegion(const cv::Mat& image, int threshold);
+    
+    
 
 
 
@@ -47,6 +50,8 @@ public:
     static std::vector<cv::Vec4i> mergeOverlappingLines(const std::vector<cv::Vec4i>& lines, double maxYDistance);
     static std::vector<cv::Vec4i> filterIrregularlySpacedLines(const std::vector<cv::Vec4i>& lines, double expectedSpacing);
     static std::vector<cv::Vec4i> filterShortLines(const std::vector<cv::Vec4i>& lines, double minLength);
+    static int getMostFrequentValue(const std::vector<int>& values);
+
 
     
     // === Visualisation ===

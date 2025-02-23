@@ -541,39 +541,28 @@ std::pair<cv::Mat, int> ImageUtils::detectTransitionsAndCountPairs(const cv::Mat
     }
 
     int rows = image.rows;
+    std::vector<int> transitionY;
+
     cv::line(outputImage, cv::Point(xCoord, 0), cv::Point(xCoord, rows), cv::Scalar(0, 255, 0), 1);
 
-    int numPairs = 0;
-    bool lastWasRed = false; 
-
-    for (int y = rows - 2; y >= 0; --y) {
+    for (int y = rows - 2; y >= 0; --y) {  
         uchar currentPixel = image.at<uchar>(y, xCoord);
         uchar nextPixel = image.at<uchar>(y + 1, xCoord);
 
-        if (currentPixel != nextPixel) {
-            cv::Scalar color;
-            bool isRed = false;
-
-            if (currentPixel < nextPixel) { 
-                color = cv::Scalar(0, 0, 255);
-                isRed = true;
-            } else { 
-                color = cv::Scalar(255, 0, 0);
-                isRed = false;
+        if (currentPixel != nextPixel) {  
+            if (!transitionY.empty() && std::abs(y - transitionY.back()) < 5) {
+                continue; // ignore les transitions trop proches
             }
+            transitionY.push_back(y);
 
-            cv::drawMarker(outputImage, cv::Point(xCoord, y), color, cv::MARKER_CROSS, 15, 1);
-
-            if (!isRed && lastWasRed) {  
-                numPairs++;
-            }
-
-            lastWasRed = isRed; 
+            cv::Scalar color = (currentPixel < nextPixel) ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0);  
+            cv::drawMarker(outputImage, cv::Point(xCoord, y), color, cv::MARKER_CROSS, 15, 2);
         }
     }
 
-    return {outputImage, numPairs};
+    return {outputImage, static_cast<int>(transitionY.size() / 2)};
 }
+
 
 
 
@@ -622,4 +611,57 @@ std::pair<cv::Mat, std::vector<int>> ImageUtils::scanImageForStepPatterns(const 
     }
 
     return {outputImage, transitionCounts};
+}
+
+int ImageUtils::getMostFrequentValue(const std::vector<int>& values) {
+    if (values.empty()) return -1; 
+
+    std::map<int, int> frequencyMap;
+    for (int value : values) {
+        if (value > 0) { 
+            frequencyMap[value]++;
+        }
+    }
+
+    if (frequencyMap.empty()) return -1; 
+
+    int mostFrequentValue = -1;
+    int maxCount = 0;
+    for (const auto& [value, count] : frequencyMap) {
+        if (count > maxCount) {
+            maxCount = count;
+            mostFrequentValue = value;
+        }
+    }
+
+    return mostFrequentValue;
+}
+
+
+std::pair<int, int> ImageUtils::detectStaircaseRegion(const cv::Mat& image, int threshold) {
+    std::vector<int> projection(image.cols, 0);
+
+    // Balayage horizontal : compter les pixels clairs
+    for (int x = 0; x < image.cols; ++x) {
+        projection[x] = cv::countNonZero(image.col(x));
+    }
+
+    // Détection des limites de la zone d’intérêt
+    int leftBound = -1, rightBound = -1;
+    
+    for (int x = 0; x < image.cols; ++x) {
+        if (projection[x] > threshold) {
+            leftBound = x;
+            break;
+        }
+    }
+
+    for (int x = image.cols - 1; x >= 0; --x) {
+        if (projection[x] > threshold) {
+            rightBound = x;
+            break;
+        }
+    }
+
+    return {leftBound, rightBound};  // Renvoie les bornes de la zone détectée
 }
