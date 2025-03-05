@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <numeric>
+#include <opencv2/ximgproc.hpp>
 
 
 cv::Mat ImageUtils::loadImage(const std::string& path) {
@@ -664,4 +665,180 @@ std::pair<int, int> ImageUtils::detectStaircaseRegion(const cv::Mat& image, int 
     }
 
     return {leftBound, rightBound};  // Renvoie les bornes de la zone détectée
+}
+
+
+
+cv::Mat ImageUtils::applyCLAHE(const cv::Mat& image) {
+    cv::Mat claheImage;
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    clahe->apply(image, claheImage);
+    return claheImage;
+}
+
+cv::Mat ImageUtils::applyGaborFilter(const cv::Mat& image) {
+    cv::Mat gaborKernel = cv::getGaborKernel(cv::Size(11, 11), 10, CV_PI / 2, 10, 0.5, 0, CV_32F);
+    cv::Mat filteredImage;
+    cv::filter2D(image, filteredImage, CV_32F, gaborKernel);
+    return filteredImage;
+}
+
+cv::Mat ImageUtils::detectEdges(const cv::Mat& image) {
+    cv::Mat edges;
+    cv::Canny(image, edges, 100, 200);
+    return edges;
+}
+
+cv::Mat ImageUtils::extractROIUsingBlocks(const cv::Mat& edges, cv::Mat& edgesWithBlocks, int blockSize) {
+    cv::Mat mask = cv::Mat::zeros(edges.size(), CV_8U);
+    cv::cvtColor(edges, edgesWithBlocks, cv::COLOR_GRAY2BGR);
+
+    for (int y = 0; y < edges.rows; y += blockSize) {
+        for (int x = 0; x < edges.cols; x += blockSize) {
+            int w = std::max(0, std::min(blockSize, edges.cols - x));
+            int h = std::max(0, std::min(blockSize, edges.rows - y));
+            if (w == 0 || h == 0) continue;
+
+            cv::Rect block(x, y, w, h);
+            cv::Mat roi = edges(block);
+
+            std::vector<cv::Vec4i> localLines;
+            cv::HoughLinesP(roi, localLines, 1, CV_PI / 180, 30, 30, 10);
+
+            int countParallel = 0;
+            float angleThreshold = 10 * CV_PI / 180;
+
+            for (const auto& line : localLines) {
+                float dx = line[2] - line[0];
+                float dy = line[3] - line[1];
+                float angle = std::atan2(dy, dx);
+                if (std::abs(angle) < angleThreshold) {
+                    countParallel++;
+                }
+            }
+
+            if (countParallel >= 3) {
+                mask(block).setTo(255);
+                cv::rectangle(edgesWithBlocks, block, cv::Scalar(0, 0, 255), 2);
+            }
+        }
+    }
+    return mask;
+}
+
+cv::Mat ImageUtils::detectBlackBlocks(const cv::Mat& image, int blockSize) {
+    cv::Mat mask = cv::Mat::zeros(image.size(), CV_8U);
+    for (int y = 0; y < image.rows; y += blockSize) {
+        for (int x = 0; x < image.cols; x += blockSize) {
+            int w = std::max(0, std::min(blockSize, image.cols - x));
+            int h = std::max(0, std::min(blockSize, image.rows - y));
+            if (w == 0 || h == 0) continue;
+
+            cv::Rect block(x, y, w, h);
+            cv::Mat roi = image(block);
+            double minVal, maxVal;
+            cv::minMaxLoc(roi, &minVal, &maxVal);
+            if (maxVal == 0) {
+                mask(block).setTo(255);
+            }
+        }
+    }
+    return mask;
+}
+
+cv::Mat ImageUtils::removeIsolatedBlackBlocks(const cv::Mat& mask, int blockSize) {
+    cv::Mat cleanedMask = mask.clone();
+    std::vector<cv::Point> toRemove;  // Stocker les blocs isolés
+
+    // Première passe : Identifier les blocs noirs isolés
+    for (int y = 0; y < mask.rows; y += blockSize) {
+        for (int x = 0; x < mask.cols; x += blockSize) {
+            int w = std::max(0, std::min(blockSize, mask.cols - x));
+            int h = std::max(0, std::min(blockSize, mask.rows - y));
+            if (w == 0 || h == 0) continue;
+
+            cv::Rect block(x, y, w, h);
+
+            // Vérifie si le bloc est noir
+            if (mask(block).at<uchar>(0, 0) == 255) continue;  // Ignore les blocs blancs
+
+            // Vérifier si le bloc noir a un voisin noir
+            bool hasNeighbor = false;
+
+            // Vérifier les voisins horizontaux et verticaux
+            if (x > 0 && mask.at<uchar>(y, x - blockSize) == 0) hasNeighbor = true;
+            if (x + blockSize < mask.cols && mask.at<uchar>(y, x + blockSize) == 0) hasNeighbor = true;
+            if (y > 0 && mask.at<uchar>(y - blockSize, x) == 0) hasNeighbor = true;
+            if (y + blockSize < mask.rows && mask.at<uchar>(y + blockSize, x) == 0) hasNeighbor = true;
+
+            // Vérifier les voisins diagonaux
+            if (x > 0 && y > 0 && mask.at<uchar>(y - blockSize, x - blockSize) == 0) hasNeighbor = true;
+            if (x + blockSize < mask.cols && y > 0 && mask.at<uchar>(y - blockSize, x + blockSize) == 0) hasNeighbor = true;
+            if (x > 0 && y + blockSize < mask.rows && mask.at<uchar>(y + blockSize, x - blockSize) == 0) hasNeighbor = true;
+            if (x + blockSize < mask.cols && y + blockSize < mask.rows && mask.at<uchar>(y + blockSize, x + blockSize) == 0) hasNeighbor = true;
+
+            // Si le bloc noir n'a aucun voisin noir, on le marque pour suppression
+            if (!hasNeighbor) {
+                toRemove.push_back(cv::Point(x, y));
+            }
+        }
+    }
+
+    // Deuxième passe : Supprimer les blocs noirs isolés
+    for (const auto& p : toRemove) {
+        cv::Rect block(p.x, p.y, std::min(blockSize, mask.cols - p.x), std::min(blockSize, mask.rows - p.y));
+        cleanedMask(block).setTo(255);  // Remettre en blanc
+    }
+
+    return cleanedMask;
+}
+
+
+cv::Mat ImageUtils::applyMaskToImage(const cv::Mat& image, const cv::Mat& mask) {
+    cv::Mat result;
+    image.copyTo(result, mask);
+    return result;
+}
+
+
+cv::Mat ImageUtils::computePrincipalAxis(const cv::Mat& edges, double& angle) {
+    std::vector<cv::Point> points;
+    
+    int borderMargin = 10; 
+
+    for (int y = borderMargin; y < edges.rows - borderMargin; y++) {
+        for (int x = borderMargin; x < edges.cols - borderMargin; x++) {
+            if (edges.at<uchar>(y, x) > 0) {
+                points.push_back(cv::Point(x, y));
+            }
+        }
+    }
+
+    if (points.size() < 2) {
+        angle = 0;
+        return edges.clone(); 
+    }
+
+    cv::Mat data(points.size(), 2, CV_64F);
+    for (size_t i = 0; i < points.size(); i++) {
+        data.at<double>(i, 0) = points[i].x;
+        data.at<double>(i, 1) = points[i].y;
+    }
+
+    cv::PCA pca(data, cv::Mat(), cv::PCA::DATA_AS_ROW);
+
+    cv::Point2d eigenvector = cv::Point2d(pca.eigenvectors.at<double>(0, 0), pca.eigenvectors.at<double>(0, 1));
+    cv::Point2d mean = cv::Point2d(pca.mean.at<double>(0, 0), pca.mean.at<double>(0, 1));
+
+    angle = std::atan2(eigenvector.y, eigenvector.x) * 180.0 / CV_PI;
+
+    cv::Mat result = edges.clone();
+    cv::cvtColor(result, result, cv::COLOR_GRAY2BGR);
+
+
+    cv::line(result, cv::Point(mean.x - 100 * eigenvector.x, mean.y - 100 * eigenvector.y),
+             cv::Point(mean.x + 100 * eigenvector.x, mean.y + 100 * eigenvector.y),
+             cv::Scalar(0, 0, 255), 2);
+
+    return result;
 }

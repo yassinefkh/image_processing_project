@@ -1,192 +1,161 @@
-#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
-#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/constants.hpp"
 #include <opencv2/opencv.hpp>
+#include <opencv2/ximgproc.hpp>
 #include <iostream>
 #include <vector>
+#include <cmath>
+#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
 
-std::vector<float> removeOutliersIQR(std::vector<float>& values) {
-    if (values.size() < 4) return values; // Pas assez de données pour calculer l'IQR
+std::vector<cv::Vec4i> getHorizontalHoughLines(const cv::Mat& edgeImage, 
+                                               double angleThreshold = 15.0, 
+                                               double minEccentricity = 5.0, 
+                                               double minLength = 100.0) {
+    std::vector<cv::Vec4i> lines, filteredLines;
 
-    std::sort(values.begin(), values.end());
+    cv::HoughLinesP(edgeImage, lines, 1, CV_PI / 180, 50, 30, 10);
 
-    float Q1 = values[values.size() / 4];
-    float Q3 = values[3 * values.size() / 4];
-    float IQR = Q3 - Q1;
+    for (const auto& line : lines) {
+        double dx = line[2] - line[0];  
+        double dy = line[3] - line[1]; 
+        double angle = std::atan2(dy, dx) * 180.0 / CV_PI; 
+        double length = std::sqrt(dx * dx + dy * dy);  
+        double eccentricity = std::abs(dx) / (std::abs(dy) + 1e-5);
 
-    float lowerBound = Q1 - 1.5 * IQR;
-    float upperBound = Q3 + 1.5 * IQR;
-
-    std::vector<float> filteredValues;
-    for (float v : values) {
-        if (v >= lowerBound && v <= upperBound) {
-            filteredValues.push_back(v);
+        if (std::abs(angle) < angleThreshold && eccentricity > minEccentricity && length > minLength) {
+            filteredLines.push_back(line);
         }
     }
-    return filteredValues;
+
+    return filteredLines; 
 }
+
 
 
 int main() {
     try {
-        std::string inputImagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/input/img5.png";
+        std::string inputImagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/t3i25.jpg";
         cv::Mat image = cv::imread(inputImagePath, cv::IMREAD_GRAYSCALE);
         if (image.empty()) {
             std::cerr << "Erreur : Impossible de charger l'image !" << std::endl;
             return 1;
         }
 
-        // Prétraitement de l'image
-        cv::Mat blurredImage;
-        cv::GaussianBlur(image, blurredImage, cv::Size(5, 5), 1.5);
+        cv::Mat claheImage = ImageUtils::applyCLAHE(image);
+        cv::Mat gaborImage = ImageUtils::applyGaborFilter(claheImage);
+        cv::normalize(gaborImage, gaborImage, 0, 255, cv::NORM_MINMAX);
+        gaborImage.convertTo(gaborImage, CV_8U);
+        cv::Mat edges = ImageUtils::detectEdges(gaborImage);
 
-        cv::Mat sharpenedImage;
-        cv::Mat kernel = (cv::Mat_<float>(3,3) <<  
-                           0, -1,  0,  
-                          -1,  5, -1,  
-                           0, -1,  0);
-        cv::filter2D(blurredImage, sharpenedImage, -1, kernel);
-
-        cv::Mat thresholdedImage;
-        cv::adaptiveThreshold(sharpenedImage, thresholdedImage, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
-                              cv::THRESH_BINARY_INV, 15, 5);
-
-        // Extraction des contours horizontaux
-        cv::Mat horizontalKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 1));
-        cv::Mat dilatedImage;
-        cv::dilate(thresholdedImage, dilatedImage, horizontalKernel);
-
-        cv::Mat erodedImage;
-        cv::erode(dilatedImage, erodedImage, horizontalKernel);
-
-        cv::Mat verticalKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(1, 25));
-        cv::Mat verticalFiltered;
-        cv::morphologyEx(thresholdedImage, verticalFiltered, cv::MORPH_OPEN, verticalKernel);
-        cv::bitwise_not(verticalFiltered, verticalFiltered);
-
-        cv::Mat horizontalLinesOnly;
-        cv::bitwise_and(erodedImage, verticalFiltered, horizontalLinesOnly);
-
-        cv::Mat cleanImage;
-        cv::morphologyEx(horizontalLinesOnly, cleanImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 1)));
-
-        // Filtrage par excentricité
-        std::vector<std::vector<cv::Point>> contours;
-        std::vector<cv::Vec4i> hierarchy;
-        cv::findContours(cleanImage, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-        cv::Mat eccentricityFiltered = cv::Mat::zeros(cleanImage.size(), CV_8UC1);
-        std::vector<float> stepYPositions;
-
-        for (const auto& contour : contours) {
-            if (contour.size() < 5) continue;
-            cv::RotatedRect ellipse = cv::fitEllipse(contour);
-            double minorAxis = std::min(ellipse.size.width, ellipse.size.height);
-            double majorAxis = std::max(ellipse.size.width, ellipse.size.height);
-            double eccentricity = std::sqrt(1 - (minorAxis * minorAxis) / (majorAxis * majorAxis));
-            if (eccentricity > 0.99) {
-                cv::drawContours(eccentricityFiltered, std::vector<std::vector<cv::Point>>{contour}, -1, 255, cv::FILLED);
-            }
+        int blockSize = 100; 
+        cv::Mat edgesWithBlocks;
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
+        cv::Mat dilatedEdges;
+        cv::dilate(edges, dilatedEdges, kernel);
+        cv::Mat closedEdges;
+        cv::morphologyEx(dilatedEdges, closedEdges, cv::MORPH_CLOSE, kernel);
+        
+        cv::Mat stairMask = ImageUtils::extractROIUsingBlocks(closedEdges, edgesWithBlocks, blockSize);
+        if (stairMask.empty()) {
+            std::cerr << "Erreur : le masque des escaliers est vide !" << std::endl;
+            return 1;
         }
 
-        // Filtrage par longueur d'axe majeur
-        std::vector<std::vector<cv::Point>> contoursFiltered;
-        std::vector<cv::Vec4i> hierarchyFiltered;
-        cv::findContours(eccentricityFiltered, contoursFiltered, hierarchyFiltered, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-        cv::Mat majorAxisFiltered = cv::Mat::zeros(cleanImage.size(), CV_8UC1);
-
-        double minMajorAxisLength = 200;
-        double maxMajorAxisLength = 1000;
-
-        for (const auto& contour : contoursFiltered) {
-            if (contour.size() < 5) continue;
-            cv::RotatedRect ellipse = cv::fitEllipse(contour);
-            double majorAxis = std::max(ellipse.size.width, ellipse.size.height);
-            if (majorAxis >= minMajorAxisLength && majorAxis <= maxMajorAxisLength) {
-                stepYPositions.push_back(ellipse.center.y);
-                cv::drawContours(majorAxisFiltered, std::vector<std::vector<cv::Point>>{contour}, -1, 255, cv::FILLED);
-            }
+        cv::Mat finalROI;
+        image.copyTo(finalROI, stairMask);
+        if (finalROI.empty()) {
+            std::cerr << "Erreur : l'isolement de la région des escaliers a échoué !" << std::endl;
+            return 1;
         }
 
-
-        std::vector<cv::Vec4i> lines;
-        cv::HoughLinesP(majorAxisFiltered, lines, 1, CV_PI / 180, 100, 200, 10);
-
-        cv::Mat houghVisualization = majorAxisFiltered.clone();
-        cv::cvtColor(houghVisualization, houghVisualization, cv::COLOR_GRAY2BGR);
-
-        for (const auto& line : lines) {
-            float y1 = static_cast<float>(line[1]);
-            float y2 = static_cast<float>(line[3]);
-            float avgY = (y1 + y2) / 2; // Prendre la moyenne de la ligne
-            stepYPositions.push_back(avgY);
-
-            cv::line(houghVisualization, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
+        cv::Mat blackBlockMask = ImageUtils::detectBlackBlocks(finalROI, blockSize);
+        if (blackBlockMask.empty()) {
+            std::cerr << "Erreur : aucun bloc noir détecté !" << std::endl;
+            return 1;
         }
 
-        cv::imshow("Lignes détectées (Hough)", houghVisualization);
+        cv::imshow("Contours détectés", edges);
+        cv::imshow("Contours avec blocs retenus", edgesWithBlocks);
+        cv::imshow("Masque des escaliers", stairMask);
+        cv::imshow("Région des escaliers isolée", finalROI);
+        cv::imshow("Masque des blocs noirs", blackBlockMask);
 
-        // Visualisation des marches détectées
-        cv::Mat stepVisualization = majorAxisFiltered.clone();
-        cv::cvtColor(stepVisualization, stepVisualization, cv::COLOR_GRAY2BGR);
-
-
-
-        cv::imshow("Positions des marches détectées", stepVisualization);
-        stepYPositions = removeOutliersIQR(stepYPositions);
-        cv::imshow("Positions des marches détectées", stepVisualization);
-
-                for (float y : stepYPositions) {
-            cv::line(stepVisualization, cv::Point(0, y), cv::Point(stepVisualization.cols, y), cv::Scalar(0, 255, 0), 2);
-        }
-        // K-Means pour regrouper les marches
-        if (!stepYPositions.empty()) {
-            cv::Mat stepData(stepYPositions.size(), 1, CV_32F);
-            for (size_t i = 0; i < stepYPositions.size(); i++) {
-                stepData.at<float>(i, 0) = stepYPositions[i];
-            }
-
-            // Normalisation
-            double minVal, maxVal;
-            cv::minMaxLoc(stepData, &minVal, &maxVal);
-            stepData = (stepData - minVal) / (maxVal - minVal);
-
-            // Déterminer un nombre raisonnable de clusters
-            int numClusters = std::max(2, std::min(15, static_cast<int>(stepYPositions.size() / 2)));
-
-            cv::Mat labels, centers;
-            cv::kmeans(stepData, numClusters, labels, 
-                       cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 10, 1.0),
-                       3, cv::KMEANS_PP_CENTERS, centers);
-
-            std::cout << "Nombre estimé de marches (K-Means) : " << centers.rows << std::endl;
-
-            // Visualisation du clustering
-            cv::Mat kmeansVisualization = image.clone();
-            cv::cvtColor(kmeansVisualization, kmeansVisualization, cv::COLOR_GRAY2BGR);
-
-            for (int i = 0; i < centers.rows; i++) {
-                float y = centers.at<float>(i, 0) * (maxVal - minVal) + minVal;
-                cv::line(kmeansVisualization, cv::Point(0, y), cv::Point(kmeansVisualization.cols, y), cv::Scalar(0, 0, 255), 2);
-            }
-
-            cv::imshow("Clusters K-Means des marches", kmeansVisualization);
+        cv::Mat cleanedMask = ImageUtils::removeIsolatedBlackBlocks(blackBlockMask, blockSize);
+        if (cleanedMask.empty()) {
+            std::cerr << "Erreur : aucun bloc noir isolé détecté !" << std::endl;
+            return 1;
         }
 
-        // Affichage des étapes
-        cv::imshow("Image originale", image);
-        cv::imshow("Image floutée", blurredImage);
-        cv::imshow("Image après netteté", sharpenedImage);
-        cv::imshow("Image seuillée", thresholdedImage);
-        cv::imshow("Après dilatation horizontale", dilatedImage);
-        cv::imshow("Après érosion", erodedImage);
-        cv::imshow("Filtrage des structures verticales", verticalFiltered);
-        cv::imshow("Lignes horizontales uniquement", horizontalLinesOnly);
-        cv::imshow("Après nettoyage final", cleanImage);
-        cv::imshow("Filtrage par excentricité", eccentricityFiltered);
-        cv::imshow("Filtrage par Major Axis Length", majorAxisFiltered);
+        cv::imshow("Masque des blocs noirs nettoyé", cleanedMask);
+
+        cv::Mat finalMaskedImage = ImageUtils::applyMaskToImage(image, 1-cleanedMask);
+        cv::imshow("Région finale après application du masque finalmaskedimage", finalMaskedImage);
+
+        //cv::Mat quantizedImage = ImageUtils::quantize(finalMaskedImage, 4);
+        //cv::imshow("Image quantifiée", quantizedImage);
+
+  
+        //cv::Mat cannyEdges;
+        //scv::Canny(finalMaskedImage, cannyEdges, 50, 150);
+        //cv::imshow("Contours de l'image finale", cannyEdges);
+
+/*         cv::Mat gaborFinal = ImageUtils::applyGaborFilter(finalMaskedImage);
+        cv::normalize(gaborFinal, gaborFinal, 0, 255, cv::NORM_MINMAX);
+        gaborFinal.convertTo(gaborFinal, CV_8U);
+        cv::Mat finalEdges = ImageUtils::detectEdges(gaborFinal);
+
+        cv::imshow("Filtrage Gabor sur image finale", gaborFinal);
+        cv::imshow("Contours Canny sur image finale", finalEdges); */
+
+        cv::Mat sobelX, sobelY, sobelFinal;
+
+        cv::Sobel(finalMaskedImage, sobelY, CV_32F, 0, 1, 3); 
+
+        cv::convertScaleAbs(sobelY, sobelFinal);
+
+        cv::threshold(sobelFinal, sobelFinal, 50, 255, cv::THRESH_BINARY);
+
+        cv::imshow("Contours horizontaux (Sobel Y)", sobelFinal);
+
+
+
+        double stairAngle;
+        cv::Mat axisImage = ImageUtils::computePrincipalAxis(sobelFinal, stairAngle);
+        cv::imshow("Axe principal de l'escalier", axisImage);
+        std::cout << "Angle principal de l'escalier : " << stairAngle << " degrés" << std::endl;
+
+
+        cv::Mat medianFiltered;
+        cv::medianBlur(sobelFinal, medianFiltered, 5);
+        cv::imshow("Contours filtrés par médiane", medianFiltered);
+    
+        cv::Mat blurredFinal, thresholded;
+        cv::GaussianBlur(medianFiltered, blurredFinal, cv::Size(9, 9), 20);
+        cv::imshow("Contours floutés", blurredFinal);
+        cv::threshold(blurredFinal, thresholded, 50, 255, cv::THRESH_BINARY);
+        cv::imshow("Contours floutés et seuillés", thresholded);
+        cv::Mat dilatedBlurred;
+        cv::Mat kernelBis = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));
+        cv::dilate(thresholded, dilatedBlurred, kernelBis);
+        cv::imshow("Contours dilatés", dilatedBlurred);
+
+
+    std::vector<cv::Vec4i> horizontalLines = getHorizontalHoughLines(blurredFinal);
+
+
+    cv::Mat houghImage;
+    cv::cvtColor(blurredFinal, houghImage, cv::COLOR_GRAY2BGR);
+
+    for (const auto& line : horizontalLines) {
+        cv::line(houghImage, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
+    }
+
+    cv::imshow("Lignes horizontales détectées", houghImage);
+    cv::waitKey(0);
+
+
+
 
         cv::waitKey(0);
         cv::destroyAllWindows();
-
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;
         return 1;

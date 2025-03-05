@@ -62,6 +62,18 @@ public:
 
     // === Quantification de l'image ===
     static cv::Mat quantize(const cv::Mat& image, int numberOfLevels);
+
+
+    static cv::Mat applyCLAHE(const cv::Mat& image);
+    static cv::Mat applyGaborFilter(const cv::Mat& image);
+    static cv::Mat detectEdges(const cv::Mat& image);
+    static cv::Mat extractROIUsingBlocks(const cv::Mat& edges, cv::Mat& edgesWithBlocks, int blockSize);
+    static cv::Mat detectBlackBlocks(const cv::Mat& image, int blockSize);
+    static cv::Mat removeIsolatedBlackBlocks(const cv::Mat& mask, int blockSize);
+    static cv::Mat applyMaskToImage(const cv::Mat& image, const cv::Mat& mask);
+    static cv::Mat computePrincipalAxis(const cv::Mat& edges, double& angle);
+
+
 };
 
 #endif // IMAGEUTILS_HPP
