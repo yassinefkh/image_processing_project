@@ -6,6 +6,7 @@
 #include <cmath>
 #include <numeric>
 #include <opencv2/ximgproc.hpp>
+#include <fstream>
 
 
 cv::Mat ImageUtils::loadImage(const std::string& path) {
@@ -683,11 +684,7 @@ cv::Mat ImageUtils::applyGaborFilter(const cv::Mat& image) {
     return filteredImage;
 }
 
-cv::Mat ImageUtils::detectEdges(const cv::Mat& image) {
-    cv::Mat edges;
-    cv::Canny(image, edges, 100, 200);
-    return edges;
-}
+
 
 cv::Mat ImageUtils::extractROIUsingBlocks(const cv::Mat& edges, cv::Mat& edgesWithBlocks, int blockSize) {
     cv::Mat mask = cv::Mat::zeros(edges.size(), CV_8U);
@@ -841,4 +838,186 @@ cv::Mat ImageUtils::computePrincipalAxis(const cv::Mat& edges, double& angle) {
              cv::Scalar(0, 0, 255), 2);
 
     return result;
+}
+
+
+cv::Mat ImageUtils::reduceMinimumValueOfHistogram(const cv::Mat& image, int minValue) {
+    cv::Mat result = image.clone();
+    cv::Mat hist;
+    int histSize = 256;
+    float range[] = {0, 256};
+    const float* histRange = {range};
+    cv::calcHist(&image, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+
+    int minVal = 0;
+    int maxVal = 255;
+    for (int i = 0; i < histSize; i++) {
+        if (hist.at<float>(i) > 0) {
+            minVal = i;
+            break;
+        }
+    }
+
+    for (int i = histSize - 1; i >= 0; i--) {
+        if (hist.at<float>(i) > 0) {
+            maxVal = i;
+            break;
+        }
+    }
+
+    if (minVal < minValue) {
+        float alpha = (255.0 - minValue) / (maxVal - minVal);
+        float beta = minValue - minVal * alpha;
+
+        image.convertTo(result, CV_8U, alpha, beta);
+    }
+
+    return result;
+}
+
+void ImageUtils::exportProfile(const std::vector<double>& depthValues, const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Erreur : Impossible d'ouvrir le fichier pour l'export !" << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < depthValues.size(); i++) {
+        file << depthValues[i] << "\n";
+    }
+
+    file.close();
+    std::cout << "Profil de profondeur exporté dans " << filename << std::endl;
+}
+
+
+// Fonction pour calculer les points d'intersection de la ligne avec les bords de l'image
+std::pair<cv::Point, cv::Point> ImageUtils::computeLineEndpoints(const cv::Point2d& mean, const cv::Point2d& dir, int width, int height) {
+    cv::Point pt1, pt2;
+
+    // Cas particulier : ligne verticale (évite division par zéro)
+    if (std::abs(dir.x) < 1e-6) {
+        pt1 = cv::Point(mean.x, 0);
+        pt2 = cv::Point(mean.x, height - 1);
+        return {pt1, pt2};
+    }
+
+    // Calcul des intersections avec les bords de l'image
+    double slope = dir.y / dir.x;
+    pt1 = cv::Point(0, mean.y - slope * mean.x);  // Intersection avec x=0
+    pt2 = cv::Point(width - 1, mean.y + slope * (width - 1 - mean.x));  // Intersection avec x=width-1
+
+    // Ajuster si les points sont hors de l'image
+    if (pt1.y < 0 || pt1.y >= height) {
+        pt1.y = (pt1.y < 0) ? 0 : height - 1;
+        pt1.x = mean.x + (pt1.y - mean.y) / slope;
+    }
+    if (pt2.y < 0 || pt2.y >= height) {
+        pt2.y = (pt2.y < 0) ? 0 : height - 1;
+        pt2.x = mean.x + (pt2.y - mean.y) / slope;
+    }
+
+    return {pt1, pt2};
+}
+
+// Fonction pour calculer le seuil dynamique pour la détection des transitions
+double ImageUtils::calculateTransitionThreshold(const std::vector<double>& signal) {
+    double meanDerivative = 0.0;
+    for (size_t i = 1; i < signal.size(); i++) {
+        meanDerivative += std::abs(signal[i] - signal[i - 1]);
+    }
+    meanDerivative /= (signal.size() - 1);
+    return meanDerivative * 2.0;  // Seuil = 2 fois la variation moyenne
+}
+
+
+
+std::vector<int> ImageUtils::detectTransitions(const std::vector<double>& signal) {
+    std::vector<int> transitionIndices;
+
+    if (signal.size() < 3) return transitionIndices;  // Vérification pour éviter les erreurs
+
+    // Calcul de la dérivée locale (différence de premier ordre)
+    std::vector<double> derivatives(signal.size(), 0);
+    for (size_t i = 1; i < signal.size(); i++) {
+        derivatives[i] = signal[i] - signal[i - 1];
+    }
+
+    // Calcul de la moyenne et de l'écart type de la dérivée pour éviter les faux positifs
+    double meanDiff = 0.0, stdDiff = 0.0;
+    for (size_t i = 1; i < derivatives.size(); i++) {
+        meanDiff += std::abs(derivatives[i]);
+    }
+    meanDiff /= (derivatives.size() - 1);
+
+    for (size_t i = 1; i < derivatives.size(); i++) {
+        stdDiff += std::pow(derivatives[i] - meanDiff, 2);
+    }
+    stdDiff = std::sqrt(stdDiff / (derivatives.size() - 1));
+
+    double threshold = meanDiff + 2.0 * stdDiff;  // Seuil adaptatif basé sur la moyenne et l'écart type
+
+    // Détection des transitions en cherchant des variations significatives
+    for (size_t i = 1; i < derivatives.size(); i++) {
+        if (std::abs(derivatives[i]) > threshold) {
+            transitionIndices.push_back(i);
+        }
+    }
+
+    return transitionIndices;
+}
+
+
+// Prétraitement de l'image
+cv::Mat ImageUtils::preprocessImage(const cv::Mat& image) {
+    cv::Mat blurred, claheImage;
+    cv::GaussianBlur(image, blurred, cv::Size(15, 15), 0);
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    clahe->apply(blurred, claheImage);
+    return claheImage;
+}
+
+// Détection des contours
+cv::Mat ImageUtils::detectEdges(const cv::Mat& image) {
+    cv::Mat edges;
+    cv::Mat kernel = (cv::Mat_<float>(3,3) << -1,-1,-1,0,0,0,1,1,1);
+    cv::filter2D(image, edges, -1, kernel);
+    cv::threshold(edges, edges, 50, 255, cv::THRESH_BINARY);
+    cv::medianBlur(edges, edges, 5);
+    return edges;
+}
+
+// Extraction des points des contours
+std::vector<cv::Point> ImageUtils::extractContourPoints(const cv::Mat& edges) {
+    std::vector<cv::Point> points;
+    for (int y = 0; y < edges.rows; y++)
+        for (int x = 0; x < edges.cols; x++)
+            if (edges.at<uchar>(y, x) > 0)
+                points.push_back(cv::Point(x, y));
+    return points;
+}
+
+// PCA
+std::pair<cv::Point2d, cv::Point2d> ImageUtils::computePCA(const std::vector<cv::Point>& points) {
+    cv::Mat data(points.size(), 2, CV_64F);
+    for (size_t i = 0; i < points.size(); i++) {
+        data.at<double>(i, 0) = points[i].x;
+        data.at<double>(i, 1) = points[i].y;
+    }
+    cv::PCA pca(data, cv::Mat(), cv::PCA::DATA_AS_ROW);
+    return {cv::Point2d(pca.mean), cv::Point2d(pca.eigenvectors.row(0))};
+}
+
+// Profil de profondeur
+std::vector<double> ImageUtils::extractDepthProfile(const cv::Mat& depthMap, const cv::Point2d& mean, const cv::Point2d& dir, std::vector<cv::Point>& profilePoints) {
+    std::vector<double> depthValues;
+    for (double t = -depthMap.cols; t <= depthMap.cols; t += std::sqrt(dir.x * dir.x + dir.y * dir.y)) {
+        int x = mean.x + t * dir.x;
+        int y = mean.y + t * dir.y;
+        if (x >= 0 && x < depthMap.cols && y >= 0 && y < depthMap.rows) {
+            profilePoints.push_back(cv::Point(x, y));
+            depthValues.push_back(depthMap.at<uchar>(y, x));
+        }
+    }
+    return depthValues;
 }

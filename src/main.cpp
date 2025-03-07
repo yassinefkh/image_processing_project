@@ -1,101 +1,80 @@
 #include <opencv2/opencv.hpp>
+#include <opencv2/plot.hpp>
 #include <iostream>
 #include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
 
 int main() {
     try {
-        // Charger l'image originale et la depth map
-        std::string imagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/Groupe1_Image6.jpg";
-        std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/tmpjl07t406.png"; 
+        // chargement des images
+        std::string imagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/img2.jpg";
+        std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/img2dm.png";
 
         cv::Mat image = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
         cv::Mat depthMap = cv::imread(depthPath, cv::IMREAD_GRAYSCALE);
-
         if (image.empty() || depthMap.empty()) {
             std::cerr << "Erreur : Impossible de charger l'image ou la depth map !" << std::endl;
             return 1;
         }
 
-        cv::Mat mask;
-        double threshold_value = 30;
-        cv::threshold(depthMap, mask, threshold_value, 255, cv::THRESH_BINARY_INV);
+        // prétraitement de l'image
+        cv::Mat processedImage = ImageUtils::preprocessImage(image);
+        cv::imshow("Image Prétraitée", processedImage);
 
-        cv::Mat result;
-        cv::bitwise_not(mask, mask);
-        image.copyTo(result, mask);
+        // détection des contours
+        cv::Mat edges = ImageUtils::detectEdges(processedImage);
+        cv::imshow("Contours", edges);
 
-
-        cv::Canny(result, result, 100, 200);
-        cv::imshow("Canny", result);
-
-        
-        cv::Mat binaryImageA;
-        cv::adaptiveThreshold(result, binaryImageA, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY_INV, 11, 2);
-        cv::imshow("Adaptative Threshold", binaryImageA);
-
-
-        cv::medianBlur(binaryImageA, result, 15);
-        cv::imshow("Median Blur", result);
-
-
-        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
-        clahe->setClipLimit(4);
-        clahe->apply(result, result);
-        cv::imshow("CLAHE", result);
-
-         // blur
-        cv::GaussianBlur(result, result, cv::Size(15, 15), 0);
-        //cv::imshow("Gaussian Blur", result);
-        
-
-
-        cv::Mat quantizedImage = ImageUtils::quantize(result, 2);
-
-        // adaptative threshold
-        cv::Mat binaryImageB;
-        cv::adaptiveThreshold(quantizedImage, binaryImageB, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY_INV, 11, 2);
-        //cv::imshow("Adaptative Threshold", binaryImageB);
-
-        // Érosion morphologique avec un kernel horizontal pour réduire le bruit
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(10, 1));
-        cv::Mat erodedImage;
-        cv::erode(quantizedImage, erodedImage, kernel);
-
-        // Fermeture morphologique pour reconnecter les composantes
-        cv::Mat closedImage;
-        cv::morphologyEx(erodedImage, closedImage, cv::MORPH_CLOSE, kernel);
-
-
-        cv::Mat binaryImage;
-        cv::threshold(closedImage, binaryImage, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-
-       
-        cv::Mat labels, stats, centroids;
-        int numLabels = cv::connectedComponentsWithStats(binaryImage, labels, stats, centroids, 8, CV_32S);
-
-        int minSize = 50;
-        cv::Mat smallComponents = cv::Mat::zeros(binaryImage.size(), CV_8UC1);
-        cv::Mat filteredImage = binaryImage.clone();
-
-        // Identifier et afficher les petites composantes connexes
-        for (int i = 1; i < numLabels; i++) {  // i=0 correspond au fond
-            if (stats.at<int>(i, cv::CC_STAT_AREA) < minSize) {
-                smallComponents.setTo(255, labels == i);
-                filteredImage.setTo(0, labels == i);
-            }
+        // extraction des points de contour et PCA
+        std::vector<cv::Point> points = ImageUtils::extractContourPoints(edges);
+        if (points.empty()) {
+            std::cerr << "Erreur : Aucune donnée détectée pour le PCA !" << std::endl;
+            return 1;
         }
 
-        //cv::imshow("Petites composantes à supprimer", smallComponents);
+        auto [mean, principalVector] = ImageUtils::computePCA(points);
+        auto [pt1, pt2] = ImageUtils::computeLineEndpoints(mean, principalVector, depthMap.cols, depthMap.rows);
 
-        cv::imshow("Image originale", image);
-        //cv::imshow("Depth Map", depthMap);
-        //cv::imshow("Image après masquage", result);
-        cv::imshow("Image quantifiée", quantizedImage);
-        cv::imshow("Image érodée", erodedImage);
-        //cv::imshow("Composantes connexes détectées", binaryImage);
-        cv::imshow("Image après suppression des petites composantes", filteredImage);
+        // affichage de l'axe principal sur l'image des contours
+        cv::Mat axisImage;
+        cv::cvtColor(edges, axisImage, cv::COLOR_GRAY2BGR);
+        cv::line(axisImage, pt1, pt2, cv::Scalar(0, 0, 255), 2);
+        cv::imshow("Axe Principal", axisImage);
 
-       
+        // affichage de la depth map avec la ligne tracée
+        cv::Mat depthWithLine;
+        cv::cvtColor(depthMap, depthWithLine, cv::COLOR_GRAY2BGR);
+        cv::line(depthWithLine, pt1, pt2, cv::Scalar(0, 0, 255), 2);
+        cv::imshow("Depth Map avec Ligne PCA", depthWithLine);
+
+        // extraction du profil de profondeur
+        std::vector<cv::Point> profilePoints;
+        std::vector<double> depthValues = ImageUtils::extractDepthProfile(depthMap, mean, principalVector, profilePoints);
+        ImageUtils::exportProfile(depthValues, "profil.csv");
+
+        // détection des transitions (marches)
+        std::vector<int> transitionIndices = ImageUtils::detectTransitions(depthValues);
+        std::cout << "Nombre de marches détectées : " << transitionIndices.size() << std::endl;
+
+        // affichage des transitions sur le profil
+        cv::Mat plot;
+        if (!depthValues.empty()) {
+            cv::Ptr<cv::plot::Plot2d> plotProfile = cv::plot::Plot2d::create(cv::Mat(depthValues));
+            plotProfile->render(plot);
+            for (int idx : transitionIndices) {
+                cv::circle(plot, cv::Point(idx, depthValues[idx]), 5, cv::Scalar(0, 0, 255), -1);
+            }
+            cv::imshow("Profil de Profondeur avec Transitions", plot);
+        }
+
+        // affichage des marches détectées sur l'image
+        cv::Mat imageWithSteps;
+        cv::cvtColor(image, imageWithSteps, cv::COLOR_GRAY2BGR);
+        for (int idx : transitionIndices) {
+            cv::Point pt = profilePoints[idx];
+            cv::circle(imageWithSteps, pt, 5, cv::Scalar(0, 255, 0), -1);
+        }
+        cv::imshow("Image avec Marches Détectées", imageWithSteps);
+
         cv::waitKey(0);
         cv::destroyAllWindows();
 
