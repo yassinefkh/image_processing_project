@@ -29,15 +29,37 @@ std::vector<cv::Vec4i> getHorizontalHoughLines(const cv::Mat& edgeImage,
 }
 
 
-
 int main() {
     try {
-        std::string inputImagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/t3i25.jpg";
+        std::string inputImagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/Groupe6_image9.jpg";
         cv::Mat image = cv::imread(inputImagePath, cv::IMREAD_GRAYSCALE);
         if (image.empty()) {
             std::cerr << "Erreur : Impossible de charger l'image !" << std::endl;
             return 1;
         }
+
+        cv::Mat quantizedImage = ImageUtils::quantize(image, 2);
+        cv::Mat claheImageBisBis = ImageUtils::applyCLAHE(image);
+        cv::Mat quantizedImageBis = ImageUtils::quantize(claheImageBisBis, 2);
+        cv::imshow("Image clahe", claheImageBisBis);
+        cv::imshow("Image quantifiée", quantizedImage);
+        cv::imshow("Image quantifiée bis", quantizedImageBis);
+
+        cv::Mat reducedValueImage = ImageUtils::reduceMinimumValueOfHistogram(image, 155);
+        cv::imshow("Image réduite", reducedValueImage);
+
+        cv::Mat quantizedImageBisBis = ImageUtils::quantize(reducedValueImage, 5);
+        cv::imshow("Image quantifiée bis bis", quantizedImageBisBis);
+
+        int stride = 100;
+        auto [scanImage, stepPatterns] = ImageUtils::scanImageForStepPatterns(quantizedImageBis, stride);
+        int stepCount = ImageUtils::estimateStepCount(stepPatterns);
+        std::cout << "Nombre d'escaliers estimé : " << stepCount << std::endl;
+        cv::imshow("Image scannée", scanImage);
+        for (size_t i = 0; i < stepPatterns.size(); ++i) {
+            std::cout << "Colonne " << i * stride << " : " << stepPatterns[i] << " paires" << std::endl;
+        }
+
 
         cv::Mat claheImage = ImageUtils::applyCLAHE(image);
         cv::Mat gaborImage = ImageUtils::applyGaborFilter(claheImage);
@@ -114,7 +136,14 @@ int main() {
         cv::threshold(sobelFinal, sobelFinal, 50, 255, cv::THRESH_BINARY);
 
         cv::imshow("Contours horizontaux (Sobel Y)", sobelFinal);
+        std::vector<cv::Vec4i> horizontalLinesSobel = getHorizontalHoughLines(sobelFinal);
+        cv::Mat houghImageSobel;
+        cv::cvtColor(sobelFinal, houghImageSobel, cv::COLOR_GRAY2BGR);
 
+        for (const auto& line : horizontalLinesSobel) {
+            cv::line(houghImageSobel, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
+        }
+        cv::imshow("Lignes horizontales detectees (Sobel Y)", houghImageSobel);
 
 
         double stairAngle;
@@ -125,17 +154,17 @@ int main() {
 
         cv::Mat medianFiltered;
         cv::medianBlur(sobelFinal, medianFiltered, 5);
-        cv::imshow("Contours filtrés par médiane", medianFiltered);
+        cv::imshow("Contours filtres par médiane", medianFiltered);
     
         cv::Mat blurredFinal, thresholded;
         cv::GaussianBlur(medianFiltered, blurredFinal, cv::Size(9, 9), 20);
-        cv::imshow("Contours floutés", blurredFinal);
+        cv::imshow("Contours floutes", blurredFinal);
         cv::threshold(blurredFinal, thresholded, 50, 255, cv::THRESH_BINARY);
-        cv::imshow("Contours floutés et seuillés", thresholded);
+        cv::imshow("Contours floutes et seuilles", thresholded);
         cv::Mat dilatedBlurred;
         cv::Mat kernelBis = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));
         cv::dilate(thresholded, dilatedBlurred, kernelBis);
-        cv::imshow("Contours dilatés", dilatedBlurred);
+        cv::imshow("Contours dilates", dilatedBlurred);
 
 
     std::vector<cv::Vec4i> horizontalLines = getHorizontalHoughLines(blurredFinal);
@@ -148,11 +177,8 @@ int main() {
         cv::line(houghImage, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
     }
 
-    cv::imshow("Lignes horizontales détectées", houghImage);
+    cv::imshow("Lignes horizontales detectees", houghImage);
     cv::waitKey(0);
-
-
-
 
         cv::waitKey(0);
         cv::destroyAllWindows();
