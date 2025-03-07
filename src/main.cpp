@@ -1,82 +1,160 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/plot.hpp>
 #include <iostream>
+#include <fstream>
+#include <filesystem>  
+#include <vector>
+#include <cmath>
+#include <sstream> 
+#include <cstdlib>
+#include <thread>
+#include <chrono>
 #include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
+
+namespace fs = std::filesystem;
+
+std::string removeExtension(const std::string& filename) {
+    size_t lastDot = filename.find_last_of(".");
+    return (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
+}
+
+int executePythonScript() {
+    std::string command = "python peak.py";  
+    int ret = std::system(command.c_str());
+
+    if (ret != 0) {
+        std::cerr << "Erreur lors de l'exécution du script Python !" << std::endl;
+        return -1;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    std::ifstream resultFile("result.txt");
+    int numSteps = -1;
+    if (resultFile.is_open()) {
+        resultFile >> numSteps;
+        resultFile.close();
+    } else {
+        std::cerr << "Erreur : Impossible de lire le fichier de sortie Python." << std::endl;
+    }
+
+    return numSteps;
+}
+
+std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
+    std::map<std::string, int> groundTruth;
+    std::ifstream file(csvPath);
+    if (!file.is_open()) {
+        std::cerr << "Erreur : Impossible de lire le fichier CSV !" << std::endl;
+        return groundTruth;
+    }
+
+    std::string line;
+    bool firstLine = true;
+
+    while (std::getline(file, line)) {
+        if (firstLine) {
+            firstLine = false;
+            continue; 
+        }
+
+        std::stringstream ss(line);
+        std::string imageName, stepsStr;
+        int trueSteps;
+
+        if (std::getline(ss, imageName, ',') && std::getline(ss, stepsStr)) {
+            try {
+                trueSteps = std::stoi(stepsStr);
+                std::string nameWithoutExt = removeExtension(imageName);
+                groundTruth[nameWithoutExt] = trueSteps;
+            } catch (...) {
+                std::cerr << "Erreur : Impossible de convertir '" << stepsStr << "' en nombre entier." << std::endl;
+            }
+        }
+    }
+
+    file.close();
+    return groundTruth;
+}
 
 int main() {
     try {
-        // chargement des images
-        std::string imagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/img2.jpg";
-        std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/img2dm.png";
+        std::string folderPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data";  
+        std::string csvPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/annotations.csv"; 
 
-        cv::Mat image = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
-        cv::Mat depthMap = cv::imread(depthPath, cv::IMREAD_GRAYSCALE);
-        if (image.empty() || depthMap.empty()) {
-            std::cerr << "Erreur : Impossible de charger l'image ou la depth map !" << std::endl;
+        std::map<std::string, int> groundTruth = loadGroundTruth(csvPath);
+        if (groundTruth.empty()) {
+            std::cerr << "Aucune donnée trouvée dans le fichier CSV !" << std::endl;
             return 1;
         }
 
-        // prétraitement de l'image
-        cv::Mat processedImage = ImageUtils::preprocessImage(image);
-        cv::imshow("Image Prétraitée", processedImage);
+        std::vector<int> detectedSteps;
+        std::vector<int> trueSteps;
 
-        // détection des contours
-        cv::Mat edges = ImageUtils::detectEdges(processedImage);
-        cv::imshow("Contours", edges);
+        for (const auto& entry : fs::directory_iterator(folderPath)) {
+    
+            if (entry.path().extension() != ".jpg" && entry.path().extension() != ".png" && entry.path().extension() != ".jpeg") 
+                continue;
 
-        // extraction des points de contour et PCA
-        std::vector<cv::Point> points = ImageUtils::extractContourPoints(edges);
-        if (points.empty()) {
-            std::cerr << "Erreur : Aucune donnée détectée pour le PCA !" << std::endl;
-            return 1;
-        }
+            std::string imagePath = entry.path().string();
+            std::string imageName = entry.path().filename().string();
+            std::string nameWithoutExt = removeExtension(imageName);
+            std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/depth/" + nameWithoutExt + ".png";  // On suppose que les depth maps sont en PNG
 
-        auto [mean, principalVector] = ImageUtils::computePCA(points);
-        auto [pt1, pt2] = ImageUtils::computeLineEndpoints(mean, principalVector, depthMap.cols, depthMap.rows);
-
-        // affichage de l'axe principal sur l'image des contours
-        cv::Mat axisImage;
-        cv::cvtColor(edges, axisImage, cv::COLOR_GRAY2BGR);
-        cv::line(axisImage, pt1, pt2, cv::Scalar(0, 0, 255), 2);
-        cv::imshow("Axe Principal", axisImage);
-
-        // affichage de la depth map avec la ligne tracée
-        cv::Mat depthWithLine;
-        cv::cvtColor(depthMap, depthWithLine, cv::COLOR_GRAY2BGR);
-        cv::line(depthWithLine, pt1, pt2, cv::Scalar(0, 0, 255), 2);
-        cv::imshow("Depth Map avec Ligne PCA", depthWithLine);
-
-        // extraction du profil de profondeur
-        std::vector<cv::Point> profilePoints;
-        std::vector<double> depthValues = ImageUtils::extractDepthProfile(depthMap, mean, principalVector, profilePoints);
-        ImageUtils::exportProfile(depthValues, "profil.csv");
-
-        // détection des transitions (marches)
-        std::vector<int> transitionIndices = ImageUtils::detectTransitions(depthValues);
-        std::cout << "Nombre de marches détectées : " << transitionIndices.size() << std::endl;
-
-        // affichage des transitions sur le profil
-        cv::Mat plot;
-        if (!depthValues.empty()) {
-            cv::Ptr<cv::plot::Plot2d> plotProfile = cv::plot::Plot2d::create(cv::Mat(depthValues));
-            plotProfile->render(plot);
-            for (int idx : transitionIndices) {
-                cv::circle(plot, cv::Point(idx, depthValues[idx]), 5, cv::Scalar(0, 0, 255), -1);
+            if (groundTruth.find(nameWithoutExt) == groundTruth.end()) {
+                std::cerr << "!!! Image " << imageName << " non trouvée dans le CSV, ignorée." << std::endl;
+                continue;
             }
-            cv::imshow("Profil de Profondeur avec Transitions", plot);
+
+            cv::Mat image = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
+            cv::Mat depthMap = cv::imread(depthPath, cv::IMREAD_GRAYSCALE);
+            if (image.empty() || depthMap.empty()) {
+                std::cerr << "Erreur : Impossible de charger " << imageName << " ou sa depth map !" << std::endl;
+                continue;
+            }
+
+            cv::Mat processedImage = ImageUtils::preprocessImage(image);
+
+            cv::Mat edges = ImageUtils::detectEdges(processedImage);
+
+            std::vector<cv::Point> points = ImageUtils::extractContourPoints(edges);
+            if (points.empty()) {
+                std::cerr << "!!! Aucune donnée détectée pour le PCA sur " << imageName << ", ignorée." << std::endl;
+                continue;
+            }
+
+            auto [mean, principalVector] = ImageUtils::computePCA(points);
+
+            std::vector<cv::Point> profilePoints;
+            std::vector<double> depthValues = ImageUtils::extractDepthProfile(depthMap, mean, principalVector, profilePoints);
+            ImageUtils::exportProfile(depthValues, "profil.csv");
+
+            int numDetectedSteps = executePythonScript();
+            if (numDetectedSteps < 0) {
+                std::cerr << "!!! Échec de la détection pour " << imageName << ", ignorée." << std::endl;
+                continue;
+            }
+
+            detectedSteps.push_back(numDetectedSteps);
+            trueSteps.push_back(groundTruth[nameWithoutExt]);
+
+            std::cout << ">> Image: " << imageName
+                      << " | Détecté: " << numDetectedSteps
+                      << " | Réel: " << groundTruth[nameWithoutExt] << std::endl;
         }
 
-        // affichage des marches détectées sur l'image
-        cv::Mat imageWithSteps;
-        cv::cvtColor(image, imageWithSteps, cv::COLOR_GRAY2BGR);
-        for (int idx : transitionIndices) {
-            cv::Point pt = profilePoints[idx];
-            cv::circle(imageWithSteps, pt, 5, cv::Scalar(0, 255, 0), -1);
+        if (detectedSteps.empty()) {
+            std::cerr << "Aucune image n'a été traitée correctement !" << std::endl;
+            return 1;
         }
-        cv::imshow("Image avec Marches Détectées", imageWithSteps);
 
-        cv::waitKey(0);
-        cv::destroyAllWindows();
+        double mse = 0.0;
+        for (size_t i = 0; i < detectedSteps.size(); i++) {
+            mse += std::pow(detectedSteps[i] - trueSteps[i], 2);
+        }
+        mse /= detectedSteps.size();
+
+        std::cout << "\n ---> MSE (Erreur Quadratique Moyenne) : " << mse << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;

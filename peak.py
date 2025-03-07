@@ -21,6 +21,7 @@ peaks, _ = find_peaks(-smoothed_values, prominence=prominence_value, distance=20
 if len(peaks) == 0:
     peaks, _ = find_peaks(smoothed_values, prominence=prominence_value, distance=20)
 
+""" 
 plt.figure(figsize=(10, 5))
 plt.plot(depth_values, label="Profil de profondeur (original)", alpha=0.5)
 plt.plot(smoothed_values, label=f"Profil lissé (Gaussien, sigma=2)", linewidth=2, color="orange")
@@ -31,7 +32,11 @@ plt.legend()
 plt.title("Détection des transitions (marches) avec Prominence Adaptative")
 plt.grid()
 plt.show()
+"""
 
-print(f"Prominence utilisée : {prominence_value}")
-print(f"Nombre de marches détectées : {len(peaks)}")
-print("Indices des transitions détectées :", peaks)
+#print(f"Prominence utilisée : {prominence_value}")
+#print(f"Nombre de marches détectées : {len(peaks)}")
+#print("Indices des transitions détectées :", peaks)
+
+with open("result.txt", "w") as f:
+    f.write(str(len(peaks)) + "\n")
