@@ -1,187 +1,104 @@
 #include <opencv2/opencv.hpp>
-#include <opencv2/ximgproc.hpp>
 #include <iostream>
-#include <vector>
-#include <cmath>
 #include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
-
-std::vector<cv::Vec4i> getHorizontalHoughLines(const cv::Mat& edgeImage, 
-                                               double angleThreshold = 15.0, 
-                                               double minEccentricity = 5.0, 
-                                               double minLength = 100.0) {
-    std::vector<cv::Vec4i> lines, filteredLines;
-
-    cv::HoughLinesP(edgeImage, lines, 1, CV_PI / 180, 50, 30, 10);
-
-    for (const auto& line : lines) {
-        double dx = line[2] - line[0];  
-        double dy = line[3] - line[1]; 
-        double angle = std::atan2(dy, dx) * 180.0 / CV_PI; 
-        double length = std::sqrt(dx * dx + dy * dy);  
-        double eccentricity = std::abs(dx) / (std::abs(dy) + 1e-5);
-
-        if (std::abs(angle) < angleThreshold && eccentricity > minEccentricity && length > minLength) {
-            filteredLines.push_back(line);
-        }
-    }
-
-    return filteredLines; 
-}
-
 
 int main() {
     try {
-        std::string inputImagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/Groupe6_image9.jpg";
-        cv::Mat image = cv::imread(inputImagePath, cv::IMREAD_GRAYSCALE);
-        if (image.empty()) {
-            std::cerr << "Erreur : Impossible de charger l'image !" << std::endl;
+        // Charger l'image originale et la depth map
+        std::string imagePath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/Groupe1_Image6.jpg";
+        std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/tmpjl07t406.png"; 
+
+        cv::Mat image = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
+        cv::Mat depthMap = cv::imread(depthPath, cv::IMREAD_GRAYSCALE);
+
+        if (image.empty() || depthMap.empty()) {
+            std::cerr << "Erreur : Impossible de charger l'image ou la depth map !" << std::endl;
             return 1;
         }
 
-        cv::Mat quantizedImage = ImageUtils::quantize(image, 2);
-        cv::Mat claheImageBisBis = ImageUtils::applyCLAHE(image);
-        cv::Mat quantizedImageBis = ImageUtils::quantize(claheImageBisBis, 2);
-        cv::imshow("Image clahe", claheImageBisBis);
-        cv::imshow("Image quantifiée", quantizedImage);
-        cv::imshow("Image quantifiée bis", quantizedImageBis);
+        cv::Mat mask;
+        double threshold_value = 30;
+        cv::threshold(depthMap, mask, threshold_value, 255, cv::THRESH_BINARY_INV);
 
-        cv::Mat reducedValueImage = ImageUtils::reduceMinimumValueOfHistogram(image, 155);
-        cv::imshow("Image réduite", reducedValueImage);
-
-        cv::Mat quantizedImageBisBis = ImageUtils::quantize(reducedValueImage, 5);
-        cv::imshow("Image quantifiée bis bis", quantizedImageBisBis);
-
-        int stride = 100;
-        auto [scanImage, stepPatterns] = ImageUtils::scanImageForStepPatterns(quantizedImageBis, stride);
-        int stepCount = ImageUtils::estimateStepCount(stepPatterns);
-        std::cout << "Nombre d'escaliers estimé : " << stepCount << std::endl;
-        cv::imshow("Image scannée", scanImage);
-        for (size_t i = 0; i < stepPatterns.size(); ++i) {
-            std::cout << "Colonne " << i * stride << " : " << stepPatterns[i] << " paires" << std::endl;
-        }
+        cv::Mat result;
+        cv::bitwise_not(mask, mask);
+        image.copyTo(result, mask);
 
 
-        cv::Mat claheImage = ImageUtils::applyCLAHE(image);
-        cv::Mat gaborImage = ImageUtils::applyGaborFilter(claheImage);
-        cv::normalize(gaborImage, gaborImage, 0, 255, cv::NORM_MINMAX);
-        gaborImage.convertTo(gaborImage, CV_8U);
-        cv::Mat edges = ImageUtils::detectEdges(gaborImage);
+        cv::Canny(result, result, 100, 200);
+        cv::imshow("Canny", result);
 
-        int blockSize = 100; 
-        cv::Mat edgesWithBlocks;
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2, 2));
-        cv::Mat dilatedEdges;
-        cv::dilate(edges, dilatedEdges, kernel);
-        cv::Mat closedEdges;
-        cv::morphologyEx(dilatedEdges, closedEdges, cv::MORPH_CLOSE, kernel);
         
-        cv::Mat stairMask = ImageUtils::extractROIUsingBlocks(closedEdges, edgesWithBlocks, blockSize);
-        if (stairMask.empty()) {
-            std::cerr << "Erreur : le masque des escaliers est vide !" << std::endl;
-            return 1;
+        cv::Mat binaryImageA;
+        cv::adaptiveThreshold(result, binaryImageA, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY_INV, 11, 2);
+        cv::imshow("Adaptative Threshold", binaryImageA);
+
+
+        cv::medianBlur(binaryImageA, result, 15);
+        cv::imshow("Median Blur", result);
+
+
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+        clahe->setClipLimit(4);
+        clahe->apply(result, result);
+        cv::imshow("CLAHE", result);
+
+         // blur
+        cv::GaussianBlur(result, result, cv::Size(15, 15), 0);
+        //cv::imshow("Gaussian Blur", result);
+        
+
+
+        cv::Mat quantizedImage = ImageUtils::quantize(result, 2);
+
+        // adaptative threshold
+        cv::Mat binaryImageB;
+        cv::adaptiveThreshold(quantizedImage, binaryImageB, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY_INV, 11, 2);
+        //cv::imshow("Adaptative Threshold", binaryImageB);
+
+        // Érosion morphologique avec un kernel horizontal pour réduire le bruit
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(10, 1));
+        cv::Mat erodedImage;
+        cv::erode(quantizedImage, erodedImage, kernel);
+
+        // Fermeture morphologique pour reconnecter les composantes
+        cv::Mat closedImage;
+        cv::morphologyEx(erodedImage, closedImage, cv::MORPH_CLOSE, kernel);
+
+
+        cv::Mat binaryImage;
+        cv::threshold(closedImage, binaryImage, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+       
+        cv::Mat labels, stats, centroids;
+        int numLabels = cv::connectedComponentsWithStats(binaryImage, labels, stats, centroids, 8, CV_32S);
+
+        int minSize = 50;
+        cv::Mat smallComponents = cv::Mat::zeros(binaryImage.size(), CV_8UC1);
+        cv::Mat filteredImage = binaryImage.clone();
+
+        // Identifier et afficher les petites composantes connexes
+        for (int i = 1; i < numLabels; i++) {  // i=0 correspond au fond
+            if (stats.at<int>(i, cv::CC_STAT_AREA) < minSize) {
+                smallComponents.setTo(255, labels == i);
+                filteredImage.setTo(0, labels == i);
+            }
         }
 
-        cv::Mat finalROI;
-        image.copyTo(finalROI, stairMask);
-        if (finalROI.empty()) {
-            std::cerr << "Erreur : l'isolement de la région des escaliers a échoué !" << std::endl;
-            return 1;
-        }
+        //cv::imshow("Petites composantes à supprimer", smallComponents);
 
-        cv::Mat blackBlockMask = ImageUtils::detectBlackBlocks(finalROI, blockSize);
-        if (blackBlockMask.empty()) {
-            std::cerr << "Erreur : aucun bloc noir détecté !" << std::endl;
-            return 1;
-        }
+        cv::imshow("Image originale", image);
+        //cv::imshow("Depth Map", depthMap);
+        //cv::imshow("Image après masquage", result);
+        cv::imshow("Image quantifiée", quantizedImage);
+        cv::imshow("Image érodée", erodedImage);
+        //cv::imshow("Composantes connexes détectées", binaryImage);
+        cv::imshow("Image après suppression des petites composantes", filteredImage);
 
-        cv::imshow("Contours détectés", edges);
-        cv::imshow("Contours avec blocs retenus", edgesWithBlocks);
-        cv::imshow("Masque des escaliers", stairMask);
-        cv::imshow("Région des escaliers isolée", finalROI);
-        cv::imshow("Masque des blocs noirs", blackBlockMask);
-
-        cv::Mat cleanedMask = ImageUtils::removeIsolatedBlackBlocks(blackBlockMask, blockSize);
-        if (cleanedMask.empty()) {
-            std::cerr << "Erreur : aucun bloc noir isolé détecté !" << std::endl;
-            return 1;
-        }
-
-        cv::imshow("Masque des blocs noirs nettoyé", cleanedMask);
-
-        cv::Mat finalMaskedImage = ImageUtils::applyMaskToImage(image, 1-cleanedMask);
-        cv::imshow("Région finale après application du masque finalmaskedimage", finalMaskedImage);
-
-        //cv::Mat quantizedImage = ImageUtils::quantize(finalMaskedImage, 4);
-        //cv::imshow("Image quantifiée", quantizedImage);
-
-  
-        //cv::Mat cannyEdges;
-        //scv::Canny(finalMaskedImage, cannyEdges, 50, 150);
-        //cv::imshow("Contours de l'image finale", cannyEdges);
-
-/*         cv::Mat gaborFinal = ImageUtils::applyGaborFilter(finalMaskedImage);
-        cv::normalize(gaborFinal, gaborFinal, 0, 255, cv::NORM_MINMAX);
-        gaborFinal.convertTo(gaborFinal, CV_8U);
-        cv::Mat finalEdges = ImageUtils::detectEdges(gaborFinal);
-
-        cv::imshow("Filtrage Gabor sur image finale", gaborFinal);
-        cv::imshow("Contours Canny sur image finale", finalEdges); */
-
-        cv::Mat sobelX, sobelY, sobelFinal;
-
-        cv::Sobel(finalMaskedImage, sobelY, CV_32F, 0, 1, 3); 
-
-        cv::convertScaleAbs(sobelY, sobelFinal);
-
-        cv::threshold(sobelFinal, sobelFinal, 50, 255, cv::THRESH_BINARY);
-
-        cv::imshow("Contours horizontaux (Sobel Y)", sobelFinal);
-        std::vector<cv::Vec4i> horizontalLinesSobel = getHorizontalHoughLines(sobelFinal);
-        cv::Mat houghImageSobel;
-        cv::cvtColor(sobelFinal, houghImageSobel, cv::COLOR_GRAY2BGR);
-
-        for (const auto& line : horizontalLinesSobel) {
-            cv::line(houghImageSobel, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
-        }
-        cv::imshow("Lignes horizontales detectees (Sobel Y)", houghImageSobel);
-
-
-        double stairAngle;
-        cv::Mat axisImage = ImageUtils::computePrincipalAxis(sobelFinal, stairAngle);
-        cv::imshow("Axe principal de l'escalier", axisImage);
-        std::cout << "Angle principal de l'escalier : " << stairAngle << " degrés" << std::endl;
-
-
-        cv::Mat medianFiltered;
-        cv::medianBlur(sobelFinal, medianFiltered, 5);
-        cv::imshow("Contours filtres par médiane", medianFiltered);
-    
-        cv::Mat blurredFinal, thresholded;
-        cv::GaussianBlur(medianFiltered, blurredFinal, cv::Size(9, 9), 20);
-        cv::imshow("Contours floutes", blurredFinal);
-        cv::threshold(blurredFinal, thresholded, 50, 255, cv::THRESH_BINARY);
-        cv::imshow("Contours floutes et seuilles", thresholded);
-        cv::Mat dilatedBlurred;
-        cv::Mat kernelBis = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9));
-        cv::dilate(thresholded, dilatedBlurred, kernelBis);
-        cv::imshow("Contours dilates", dilatedBlurred);
-
-
-    std::vector<cv::Vec4i> horizontalLines = getHorizontalHoughLines(blurredFinal);
-
-
-    cv::Mat houghImage;
-    cv::cvtColor(blurredFinal, houghImage, cv::COLOR_GRAY2BGR);
-
-    for (const auto& line : horizontalLines) {
-        cv::line(houghImage, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
-    }
-
-    cv::imshow("Lignes horizontales detectees", houghImage);
-    cv::waitKey(0);
-
+       
         cv::waitKey(0);
         cv::destroyAllWindows();
+
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;
         return 1;
