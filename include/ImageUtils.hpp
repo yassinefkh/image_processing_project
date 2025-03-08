@@ -76,19 +76,10 @@ public:
     static std::pair<cv::Point, cv::Point> computeLineEndpoints(const cv::Point2d& mean, const cv::Point2d& dir, int width, int height);
     static double calculateTransitionThreshold(const std::vector<double>& signal);
     static std::vector<int> detectTransitions(const std::vector<double>& signal);
-       // Prétraitement de l'image (flou gaussien + CLAHE)
     static cv::Mat preprocessImage(const cv::Mat& image);
-
-    // Détection des contours avec un filtre spécifique
     static cv::Mat detectEdges(const cv::Mat& image);
-
-    // Extraction des points des contours
     static std::vector<cv::Point> extractContourPoints(const cv::Mat& edges);
-
-    // Calcul de la PCA
     static std::pair<cv::Point2d, cv::Point2d> computePCA(const std::vector<cv::Point>& points);
-
-    // Extraction du profil de profondeur
     static std::vector<double> extractDepthProfile(const cv::Mat& depthMap, 
                                                    const cv::Point2d& mean, 
                                                    const cv::Point2d& dir, 
