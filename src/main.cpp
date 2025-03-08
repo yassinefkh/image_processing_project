@@ -19,7 +19,7 @@ std::string removeExtension(const std::string& filename) {
 }
 
 int executePythonScript() {
-    std::string command = "python peak.py";  
+    std::string command = "python3 peak.py";  
     int ret = std::system(command.c_str());
 
     if (ret != 0) {
@@ -55,7 +55,7 @@ std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
     while (std::getline(file, line)) {
         if (firstLine) {
             firstLine = false;
-            continue; 
+            continue;
         }
 
         std::stringstream ss(line);
@@ -79,7 +79,8 @@ std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
 
 int main() {
     try {
-        std::string folderPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data";  
+        std::string imgFolder = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/img";  
+        std::string depthFolder = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/depth";  
         std::string csvPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/annotations.csv"; 
 
         std::map<std::string, int> groundTruth = loadGroundTruth(csvPath);
@@ -91,7 +92,7 @@ int main() {
         std::vector<int> detectedSteps;
         std::vector<int> trueSteps;
 
-        for (const auto& entry : fs::directory_iterator(folderPath)) {
+        for (const auto& entry : fs::directory_iterator(imgFolder)) {
     
             if (entry.path().extension() != ".jpg" && entry.path().extension() != ".png" && entry.path().extension() != ".jpeg") 
                 continue;
@@ -99,10 +100,19 @@ int main() {
             std::string imagePath = entry.path().string();
             std::string imageName = entry.path().filename().string();
             std::string nameWithoutExt = removeExtension(imageName);
-            std::string depthPath = "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/data/depth/" + nameWithoutExt + ".png";  // On suppose que les depth maps sont en PNG
 
             if (groundTruth.find(nameWithoutExt) == groundTruth.end()) {
                 std::cerr << "!!! Image " << imageName << " non trouvée dans le CSV, ignorée." << std::endl;
+                continue;
+            }
+
+            std::string depthPath = depthFolder + "/" + nameWithoutExt + "_depth";
+            if (fs::exists(depthPath + ".png")) {
+                depthPath += ".png";
+            } else if (fs::exists(depthPath + ".jpg")) {
+                depthPath += ".jpg";
+            } else {
+                std::cerr << "!!! Depth map introuvable pour " << imageName << " (essayé avec _depth en .png et .jpg)" << std::endl;
                 continue;
             }
 
@@ -114,7 +124,6 @@ int main() {
             }
 
             cv::Mat processedImage = ImageUtils::preprocessImage(image);
-
             cv::Mat edges = ImageUtils::detectEdges(processedImage);
 
             std::vector<cv::Point> points = ImageUtils::extractContourPoints(edges);
@@ -154,7 +163,14 @@ int main() {
         }
         mse /= detectedSteps.size();
 
+        double mae = 0.0;
+        for (size_t i = 0; i < detectedSteps.size(); i++) {
+            mae += std::abs(detectedSteps[i] - trueSteps[i]);
+        }
+        mae /= detectedSteps.size();
+
         std::cout << "\n ---> MSE (Erreur Quadratique Moyenne) : " << mse << std::endl;
+        std::cout << " ---> MAE (Erreur Absolue Moyenne) : " << mae << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;
