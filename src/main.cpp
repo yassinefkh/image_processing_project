@@ -165,6 +165,7 @@ int main() {
 
         double mae = 0.0;
         for (size_t i = 0; i < detectedSteps.size(); i++) {
+            std::cout << "Diff[" << i << "] = " << std::abs(detectedSteps[i] - trueSteps[i]) << std::endl;
             mae += std::abs(detectedSteps[i] - trueSteps[i]);
         }
         mae /= detectedSteps.size();
