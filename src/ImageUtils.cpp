@@ -88,21 +88,161 @@ cv::Mat ImageUtils::applyErosion(const cv::Mat& image, int kernelSize) {
 
 
 
-cv::Mat ImageUtils::applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines) {
-    cv::Mat houghImage;
-    cv::cvtColor(edges, houghImage, cv::COLOR_GRAY2BGR); 
 
-    cv::HoughLinesP(edges, detectedLines, HOUGH_RHO, HOUGH_THETA, HOUGH_THRESHOLD, HOUGH_MIN_LINE_LENGTH, HOUGH_MAX_LINE_GAP);
-    
-    std::cout << "Lignes détectées (x1, y1, x2, y2) : " << std::endl;
-    for (size_t i = 0; i < detectedLines.size(); i++) {
-        cv::Vec4i l = detectedLines[i];
-        cv::line(houghImage, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0, 0, 255), 2, cv::LINE_AA);
-        std::cout << "Ligne " << i + 1 << ": (" << l[0] << ", " << l[1] << ") -> (" << l[2] << ", " << l[3] << ")" << std::endl;
+std::vector<cv::Point> ImageUtils::getPerpendicularLinePoints(const cv::Vec4i& line, int length) {
+    cv::Point p1(line[0], line[1]);
+    cv::Point p2(line[2], line[3]);
+
+    double dx = p2.x - p1.x;
+    double dy = p2.y - p1.y;
+    double norm = std::sqrt(dx*dx + dy*dy);
+
+    // vecteur unitaire perpendiculaire
+    double px = -dy / norm;
+    double py = dx / norm;
+
+    // milieu de la ligne
+    double mx = (p1.x + p2.x) / 2.0;
+    double my = (p1.y + p2.y) / 2.0;
+
+    // extrémités de la perpendiculaire
+    cv::Point q1(mx + px * length / 2.0, my + py * length / 2.0);
+    cv::Point q2(mx - px * length / 2.0, my - py * length / 2.0);
+
+    return {q1, q2};
+}
+
+
+std::vector<uchar> ImageUtils::sampleDepthAlongLine(const cv::Mat& depthMap, const cv::Point& p1, const cv::Point& p2) {
+    std::vector<uchar> values;
+
+    std::cout << "Échantillonnage entre " << p1 << " et " << p2 << " :\n";
+
+    cv::LineIterator it(depthMap, p1, p2, 8);
+    for (int i = 0; i < it.count; i++, ++it) {
+        uchar val = depthMap.at<uchar>(it.pos());
+        values.push_back(val);
+
+        std::cout << "  Point " << it.pos() << " : " << int(val) << '\n';
     }
 
-    return houghImage;
+    std::cout << "Profil de profondeur total (" << values.size() << " valeurs)\n";
+    std::cout << "----------------------------------------\n";
+
+    return values;
 }
+
+
+bool ImageUtils::isDepthProfileValid(const std::vector<uchar>& profile, double slopeThreshold) {
+    if (profile.size() < 2) return false;
+
+    double totalDiff = std::abs((int)profile.front() - (int)profile.back());
+    double slope = totalDiff / profile.size();
+
+    std::cout << "[Validation] Slope = " << slope << " | seuil = " << slopeThreshold
+              << " => " << (slope >= slopeThreshold ? "VALIDÉE" : "REJETÉE") << '\n';
+
+    return slope >= slopeThreshold;
+}
+
+
+std::vector<cv::Vec4i> ImageUtils::mergeLines(const std::vector<cv::Vec4i>& lines, int yTolerance, int xTolerance) {
+    std::vector<bool> used(lines.size(), false);
+    std::vector<cv::Vec4i> merged;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (used[i]) continue;
+
+        cv::Vec4i current = lines[i];
+        used[i] = true;
+
+        int minY = std::min(current[1], current[3]);
+        int maxY = std::max(current[1], current[3]);
+        int minX = std::min(current[0], current[2]);
+        int maxX = std::max(current[0], current[2]);
+
+        for (size_t j = i + 1; j < lines.size(); ++j) {
+            if (used[j]) continue;
+
+            cv::Vec4i candidate = lines[j];
+            int y1 = std::min(candidate[1], candidate[3]);
+            int y2 = std::max(candidate[1], candidate[3]);
+            int x1 = std::min(candidate[0], candidate[2]);
+            int x2 = std::max(candidate[0], candidate[2]);
+
+            bool sameBand = std::abs(y1 - minY) < yTolerance || std::abs(y2 - maxY) < yTolerance;
+            bool overlapX = !(x2 < minX - xTolerance || x1 > maxX + xTolerance);
+
+            if (sameBand && overlapX) {
+                minY = std::min(minY, y1);
+                maxY = std::max(maxY, y2);
+                minX = std::min(minX, x1);
+                maxX = std::max(maxX, x2);
+                used[j] = true;
+            }
+        }
+
+        // ligne horizontale fondue
+        merged.push_back(cv::Vec4i(minX, (minY + maxY) / 2, maxX, (minY + maxY) / 2));
+    }
+
+    return merged;
+}
+
+
+cv::Mat ImageUtils::applyHoughTransform(const cv::Mat& edges, const cv::Mat& depthMap, std::vector<cv::Vec4i>& filteredLines) {
+    std::vector<cv::Vec4i> linesP;
+    cv::HoughLinesP(edges, linesP, 1, CV_PI / 180, 50, 50, 10);
+
+    const double angleThreshold = 10.0;
+    for (const auto& line : linesP) {
+        double dx = line[2] - line[0];
+        double dy = line[3] - line[1];
+        double angle = std::atan2(dy, dx) * 180.0 / CV_PI;
+
+        if (std::abs(angle) < angleThreshold || std::abs(angle - 180) < angleThreshold) {
+            filteredLines.push_back(line);
+        }
+    }
+
+    const int yTolerance = 10;
+    const int xTolerance = 30;
+
+    std::vector<cv::Vec4i> mergedLines;
+    std::sort(filteredLines.begin(), filteredLines.end(), [](const cv::Vec4i& a, const cv::Vec4i& b) {
+        return a[1] < b[1];
+    });
+
+    mergedLines = ImageUtils::mergeLines(filteredLines, 10, 30);
+
+
+    cv::Mat colorEdges;
+    cv::cvtColor(edges, colorEdges, cv::COLOR_GRAY2BGR);
+
+    for (const auto& line : mergedLines) {
+    // ligne horizontale détectée (en rouge)
+    cv::line(colorEdges, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 0, 255), 1);
+
+    // ligne perpendiculaire (en bleu clair)
+    auto perpPts = ImageUtils::getPerpendicularLinePoints(line, 30);
+    cv::line(colorEdges, perpPts[0], perpPts[1], cv::Scalar(255, 255, 0), 1);
+
+    // analyse du profil sur la carte de profondeur
+    auto profile = ImageUtils::sampleDepthAlongLine(depthMap, perpPts[0], perpPts[1]);
+    std::cout<<" analyse du profil terminee " << std::endl;
+
+    // si valide, ré-affiche la ligne en vert
+    if (ImageUtils::isDepthProfileValid(profile, 0.2)) {
+        cv::line(colorEdges, cv::Point(line[0], line[1]), cv::Point(line[2], line[3]), cv::Scalar(0, 255, 0), 2);
+    }
+}
+
+
+    filteredLines = mergedLines;
+    return colorEdges;
+}
+
+
 
 std::vector<cv::Vec4i> ImageUtils::mergeCloseLines(const std::vector<cv::Vec4i>& lines, double mergeThreshold) {
     if (lines.empty()) return {};
@@ -120,11 +260,10 @@ std::vector<cv::Vec4i> ImageUtils::mergeCloseLines(const std::vector<cv::Vec4i>&
         double yCurrent = (currentLine[1] + currentLine[3]) / 2.0;
         bool merged = false;
 
-        // Vérifier s'il existe déjà une ligne très proche en Y
         for (auto& mergedLine : mergedLines) {
             double yMerged = (mergedLine[1] + mergedLine[3]) / 2.0;
             if (std::abs(yCurrent - yMerged) < mergeThreshold) {
-                // Fusionner : prendre la ligne la plus longue
+        
                 mergedLine[0] = std::min(mergedLine[0], currentLine[0]);
                 mergedLine[1] = std::min(mergedLine[1], currentLine[1]);
                 mergedLine[2] = std::max(mergedLine[2], currentLine[2]);
@@ -134,7 +273,7 @@ std::vector<cv::Vec4i> ImageUtils::mergeCloseLines(const std::vector<cv::Vec4i>&
             }
         }
 
-        // Ajouter la ligne si elle ne peut pas être fusionnée
+
         if (!merged) {
             mergedLines.push_back(currentLine);
         }

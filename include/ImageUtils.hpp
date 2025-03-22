@@ -38,6 +38,7 @@ public:
 
     // === Détection et traitement des lignes ===
     static cv::Mat applyHoughTransform(const cv::Mat& edges, std::vector<cv::Vec4i>& detectedLines);
+    static cv::Mat applyHoughTransform(const cv::Mat& edges, const cv::Mat& depthMap, std::vector<cv::Vec4i>& filteredLines);
     static std::vector<cv::Vec4i> filterHorizontalLines(const std::vector<cv::Vec4i>& lines);
     static std::vector<cv::Vec4i> filterHorizontalLinesByLength(const std::vector<cv::Vec4i>& lines, double minLength, double maxAngleDeviation);
     static std::vector<cv::Vec4i> filterRegularlySpacedLines(const std::vector<cv::Vec4i>& lines, double& avgSpacing);
@@ -85,6 +86,10 @@ public:
                                                    const cv::Point2d& dir, 
                                                    std::vector<cv::Point>& profilePoints);
     
+    static bool isDepthProfileValid(const std::vector<uchar>& profile, double gradientThreshold = 0.3);
+    static std::vector<uchar> sampleDepthAlongLine(const cv::Mat& depthMap, const cv::Point& p1, const cv::Point& p2);
+    static std::vector<cv::Point> getPerpendicularLinePoints(const cv::Vec4i& line, int length);
+    static std::vector<cv::Vec4i> mergeLines(const std::vector<cv::Vec4i>& lines, int yTolerance, int xTolerance);
 };
 
 #endif // IMAGEUTILS_HPP
