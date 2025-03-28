@@ -184,5 +184,3 @@ Projet réalisé dans le cadre du Master 1 Informatique -  Vision et Machine Int
 **Matière : Introduction à l'Analyse d'images - KURTZ Camille**  
 Année universitaire 2024-2025
 
-
-Voici une **section complète** propre et bien rédigée que tu peux ajouter à ton README sous la section **Limites et perspectives** par exemple :
