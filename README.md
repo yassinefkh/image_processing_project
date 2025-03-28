@@ -147,6 +147,35 @@ MSE : 0.33
 MAE : 0.33
 ```
 
+
+---
+
+## Tentatives avec des méthodes classiques 
+
+Au cours du développement, nous avons également expérimenté l'utilisation de la **Transformée de Hough** pour détecter les marches, en appliquant la détection de droites sur les images de contours.
+
+Pour tenter d'améliorer les performances de cette approche, nous avons mis en place un **prétraitement rigoureux** :
+- **Réduction du bruit** (flou gaussien, filtre médian).
+- **Filtrage morphologique** (ouverture, fermeture).
+- **Filtrage a posteriori** des lignes détectées : par **angle** (seulement les lignes proches de l’horizontal), par **excentricité** (droites trop courtes exclues), et par **fusion des lignes parallèles proches**.
+
+Malgré ces efforts, cette approche par Hough Transform s'est révélée **inefficace et peu robuste** :
+- Elle est **très sensible aux paramètres** (seuils, longueur minimale, distance maximale entre lignes, etc.).
+- Les **paramètres varient fortement** d'une image à l'autre, ce qui empêche une configuration stable et généralisable.
+- Même avec un filtrage post-traitement, la détection comporte souvent des **faux positifs ou des oublis**, notamment lorsque les marches sont partiellement visibles, obstruées ou mal contrastées.
+
+En pratique, pour obtenir des résultats cohérents, il faudrait :
+- soit accepter une **large marge d’erreur**,
+- soit adapter manuellement les paramètres pour chaque image, ce qui **annule le caractère déterministe** et automatique du traitement.
+
+Par comparaison, la méthode que nous avons retenue, basée sur les **profils de profondeur extraits le long de l'axe principal par PCA**, fournit des résultats **plus fiables et stables**. Toutefois, elle repose sur certaines **hypothèses fortes** :
+- Les escaliers doivent être **vus de face** (l'axe principal est bien horizontal).
+- Les escaliers doivent être **rectilignes** (pas d’escalier en colimaçon).
+- La qualité et l'alignement de la **carte de profondeur** doivent être suffisants.
+
+Cette méthode exploite donc l'information supplémentaire contenue dans la **depth map**, ce qui la rend plus performante, mais aussi **moins généralisable** à des cas où les informations de profondeur seraient indisponibles ou imprécises.
+
+
 ---
 
 ## Auteurs
@@ -155,3 +184,5 @@ Projet réalisé dans le cadre du Master 1 Informatique -  Vision et Machine Int
 **Matière : Introduction à l'Analyse d'images - KURTZ Camille**  
 Année universitaire 2024-2025
 
+
+Voici une **section complète** propre et bien rédigée que tu peux ajouter à ton README sous la section **Limites et perspectives** par exemple :
