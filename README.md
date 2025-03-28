@@ -149,7 +149,7 @@ MAE : 0.33
 
 ---
 
-## ✏️ Auteurs
+## Auteurs
 
 Projet réalisé dans le cadre du Master 1 Informatique -  Vision et Machine Intelligente (VMI)  
 **Matière : Introduction à l'Analyse d'images - KURTZ Camille**  
