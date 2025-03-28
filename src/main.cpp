@@ -19,6 +19,11 @@ std::string removeExtension(const std::string& filename) {
     return (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
 }
 
+/**
+ * @brief Exécute le script Python pour détecter les marches à partir du profil de profondeur.
+ * 
+ * @return Nombre de marches détectées ou -1 en cas d'erreur.
+ */
 int executePythonScript() {
     int ret = std::system("python3 peak.py");
     if (ret != 0) {
@@ -40,6 +45,12 @@ int executePythonScript() {
     return numSteps;
 }
 
+/**
+ * @brief Charge les annotations (vérité terrain) à partir d'un fichier CSV.
+ * 
+ * @param csvPath Chemin vers le fichier CSV.
+ * @return Dictionnaire associant chaque image à son nombre réel de marches.
+ */
 std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
     std::map<std::string, int> groundTruth;
     std::ifstream file(csvPath);
@@ -71,6 +82,12 @@ std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
     return groundTruth;
 }
 
+/**
+ * @brief Programme principal.
+ * 
+ * Chargement des images et des cartes de profondeur, traitement par PCA et profil de profondeur,
+ * exécution du script Python pour détection, et calcul des métriques d'erreur.
+ */
 int main() {
     try {
         std::string imgFolder = "data/img";

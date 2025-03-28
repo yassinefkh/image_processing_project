@@ -4,6 +4,12 @@
 #include <numeric>
 #include <cmath>
 
+/**
+ * @brief Exporte les valeurs du profil de profondeur dans un fichier texte.
+ * 
+ * @param depthValues Vecteur contenant les valeurs de profondeur.
+ * @param filename Nom du fichier de sortie.
+ */
 void ImageUtils::exportProfile(const std::vector<double>& depthValues, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) {
@@ -16,6 +22,15 @@ void ImageUtils::exportProfile(const std::vector<double>& depthValues, const std
     file.close();
 }
 
+/**
+ * @brief Calcule les points d'intersection d'une ligne avec les bords de l'image.
+ * 
+ * @param mean Point moyen (centre) de la ligne.
+ * @param dir Vecteur directionnel de la ligne.
+ * @param width Largeur de l'image.
+ * @param height Hauteur de l'image.
+ * @return Paire de points représentant les extrémités de la ligne.
+ */
 std::pair<cv::Point, cv::Point> ImageUtils::computeLineEndpoints(const cv::Point2d& mean, const cv::Point2d& dir, int width, int height) {
     cv::Point pt1, pt2;
 
@@ -41,6 +56,12 @@ std::pair<cv::Point, cv::Point> ImageUtils::computeLineEndpoints(const cv::Point
     return {pt1, pt2};
 }
 
+/**
+ * @brief Applique un flou gaussien suivi d'une égalisation adaptative (CLAHE) sur une image.
+ * 
+ * @param image Image d'entrée en niveaux de gris.
+ * @return Image prétraitée.
+ */
 cv::Mat ImageUtils::preprocessImage(const cv::Mat& image) {
     cv::Mat blurred, claheImage;
     cv::GaussianBlur(image, blurred, cv::Size(15, 15), 0);
@@ -49,6 +70,12 @@ cv::Mat ImageUtils::preprocessImage(const cv::Mat& image) {
     return claheImage;
 }
 
+/**
+ * @brief Détecte les contours d'une image en utilisant les filtres Sobel.
+ * 
+ * @param image Image en niveaux de gris.
+ * @return Image binaire des contours détectés.
+ */
 cv::Mat ImageUtils::detectEdges(const cv::Mat& image) {
     cv::Mat edges, sobelX, sobelY;
     cv::Sobel(image, sobelX, CV_16S, 1, 0);
@@ -60,6 +87,12 @@ cv::Mat ImageUtils::detectEdges(const cv::Mat& image) {
     return edges;
 }
 
+/**
+ * @brief Extrait les coordonnées des points de contour à partir d'une image binaire.
+ * 
+ * @param edges Image binaire des contours.
+ * @return Vecteur de points appartenant aux contours.
+ */
 std::vector<cv::Point> ImageUtils::extractContourPoints(const cv::Mat& edges) {
     std::vector<cv::Point> points;
     for (int y = 0; y < edges.rows; y++) {
@@ -72,6 +105,12 @@ std::vector<cv::Point> ImageUtils::extractContourPoints(const cv::Mat& edges) {
     return points;
 }
 
+/**
+ * @brief Calcule l'axe principal (via PCA) des points d'un contour.
+ * 
+ * @param points Vecteur de points du contour.
+ * @return Paire contenant le point moyen et le vecteur directionnel principal.
+ */
 std::pair<cv::Point2d, cv::Point2d> ImageUtils::computePCA(const std::vector<cv::Point>& points) {
     cv::Mat data(points.size(), 2, CV_64F);
     for (size_t i = 0; i < points.size(); i++) {
@@ -82,6 +121,15 @@ std::pair<cv::Point2d, cv::Point2d> ImageUtils::computePCA(const std::vector<cv:
     return {cv::Point2d(pca.mean), cv::Point2d(pca.eigenvectors.row(0))};
 }
 
+/**
+ * @brief Extrait le profil de profondeur le long de l'axe principal.
+ * 
+ * @param depthMap Image de profondeur correspondante.
+ * @param mean Point moyen de l'axe principal.
+ * @param dir Vecteur directionnel principal.
+ * @param profilePoints Vecteur de points où les valeurs de profondeur sont extraites.
+ * @return Vecteur contenant les valeurs de profondeur extraites.
+ */
 std::vector<double> ImageUtils::extractDepthProfile(const cv::Mat& depthMap, const cv::Point2d& mean, const cv::Point2d& dir, std::vector<cv::Point>& profilePoints) {
     std::vector<double> depthValues;
     double step = std::sqrt(dir.x * dir.x + dir.y * dir.y);
