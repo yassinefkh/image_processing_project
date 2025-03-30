@@ -140,7 +140,7 @@ L'ensemble du traitement repose sur des méthodes classiques et déterministes d
 
 ### Analyse des classes et catégorisation
 
-Avant d'évaluer notre méthode, nous avons réalisé une analyse statistique approfondie de notre jeu de données, constitué de 99 images annotées avec le nombre de marches visibles sur chaque image. Cette analyse a révélé une forte hétérogénéité dans la distribution des classes. En effet, certaines valeurs du nombre de marches étaient très peu représentées : plusieurs classes ne comptaient qu'une ou deux occurrences dans l'ensemble du dataset. Ce déséquilibre important rendait difficile l'utilisation d'une stratification directe basée sur la valeur exacte du nombre de marches, notamment pour garantir une évaluation représentative.
+Avant d'évaluer notre méthode, nous avons réalisé une analyse statistique approfondie de notre jeu de données, constitué de 93 images annotées avec le nombre de marches visibles sur chaque image. Cette analyse a révélé une forte hétérogénéité dans la distribution des classes. En effet, certaines valeurs du nombre de marches étaient très peu représentées : plusieurs classes ne comptaient qu'une ou deux occurrences dans l'ensemble du dataset. Ce déséquilibre important rendait difficile l'utilisation d'une stratification directe basée sur la valeur exacte du nombre de marches, notamment pour garantir une évaluation représentative.
 
 Pour pallier ce problème, nous avons choisi de regrouper les classes selon des plages définies, afin de lisser cette distribution. Nous avons ainsi introduit une nouvelle variable **category**, définie comme suit :
 
