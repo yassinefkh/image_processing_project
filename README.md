@@ -203,6 +203,52 @@ L’objectif de cette annotation est la suivante :
 
 ---
 
+## Évaluation et analyse des performances
+
+### Métriques utilisées
+
+Dans ce projet, l'objectif est d'estimer **le nombre de marches d'un escalier** à partir d'une image et de sa carte de profondeur.  
+Il s'agit donc d'une **tâche de régression** (prédire une valeur numérique), contrairement à une tâche de classification où l'on cherche à prédire une catégorie discrète.  
+Par conséquent, des métriques comme l'**accuracy** ou le **score-F1**, couramment utilisées en classification, ne sont **pas adaptées** ici.
+
+Nous avons choisi d'utiliser principalement le **MAE (Mean Absolute Error)**, qui correspond à l'erreur absolue moyenne entre le nombre de marches prédit et la vérité terrain.  
+Cette métrique a l'avantage d'être **interprétable directement** : un MAE de 3 signifie qu'en moyenne, le système se trompe de 3 marches.
+
+Nous avons également calculé le **MSE (Mean Squared Error)** à titre indicatif. Cependant, cette métrique est moins pertinente dans notre cas, car :
+- Elle **pénalise fortement les erreurs importantes** (les grandes erreurs ont un poids quadratique).
+- Elle est **plus difficile à interpréter directement** (un MSE de 45 n'a pas de signification concrète sur la tâche).
+- Elle est **fortement influencée par les cas extrêmes** ou les anomalies.
+
+C'est pourquoi, pour analyser les performances, nous nous basons principalement sur le **MAE**.
+
+---
+
+### Résultats globaux
+
+L'évaluation globale sur l'ensemble du test set donne les résultats suivants :
+
+| Difficulté | Nombre d'images | MAE  | MSE   |
+|----------:|:--------------:|:----:|:----:|
+| Easy     | 36            | 3.22 | 28.50 |
+| Medium   | 12            | 4.50 | 66.67 |
+| Hard     | 5             | 6.20 | 121.00 |
+| **Global** | **53**        | **3.79** | **45.87** |
+
+---
+
+### Analyse
+
+Nous avons également réalisé une évaluation **stratifiée** selon la difficulté visuelle des images (catégorie fournie manuellement) :
+- **Easy :** Bonnes performances avec un MAE faible. Les images sont simples, bien cadrées, et l'estimation est généralement correcte.
+- **Medium :** L'erreur augmente légèrement, souvent en raison de marches peu visibles ou de depth maps bruitées.
+- **Hard :** Les erreurs sont élevées. Cela s'explique par la présence d'images avec obstacles, angles extrêmes ou artefacts visuels ne respectant pas nos hypothèses (vue de face, escalier droit).
+
+Cette analyse démontre que la difficulté visuelle impacte directement les performances.  
+De plus, les cas extrêmes ont une **influence disproportionnée sur le MSE** par rapport au MAE. C’est pourquoi nous privilégions le MAE, qui reflète mieux l’erreur moyenne réelle.
+
+---
+
+
 ## Tentatives avec des méthodes classiques 
 
 Au cours du développement, nous avons également expérimenté l'utilisation de la **Transformée de Hough** pour détecter les marches, en appliquant la détection de droites sur les images de contours.
