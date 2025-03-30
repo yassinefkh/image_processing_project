@@ -150,6 +150,82 @@ MAE : 0.33
 
 ---
 
+Très bien, voici une **section complète, bien formulée** que tu peux intégrer dans ton README, adaptée à un rendu universitaire rigoureux :
+
+---
+
+## Découpage et analyse des données
+
+### Analyse des classes et catégorisation
+
+Avant d'évaluer notre méthode, nous avons réalisé une analyse statistique approfondie de notre jeu de données, constitué de 99 images annotées avec le nombre de marches visibles sur chaque image. Cette analyse a révélé une forte hétérogénéité dans la distribution des classes. En effet, certaines valeurs du nombre de marches étaient très peu représentées : plusieurs classes ne comptaient qu'une ou deux occurrences dans l'ensemble du dataset. Ce déséquilibre important rendait difficile l'utilisation d'une stratification directe basée sur la valeur exacte du nombre de marches, notamment pour garantir une évaluation représentative.
+
+Pour pallier ce problème, nous avons choisi de regrouper les classes selon des plages définies, afin de lisser cette distribution. Nous avons ainsi introduit une nouvelle variable **category**, définie comme suit :
+
+| Catégorie | Plage du nombre de marches |
+|:---------:|:-------------------------:|
+| Peu      | 2 à 5 marches             |
+| Moyen    | 6 à 10 marches            |
+| Beaucoup | 11 à 22 marches           |
+| Extrême  | 34 marches et plus        |
+
+Cette catégorisation permet de regrouper les images selon des niveaux de complexité.
+
+### Découpage du dataset
+
+Une fois la catégorisation réalisée, nous avons procédé à un **découpage du dataset en deux sous-ensembles** :
+- **Validation set** : 30% des données
+- **Test set** : 70% des données
+
+Le choix de ces proportions s'explique par la nature de notre méthode : notre approche ne repose pas sur un modèle nécessitant un apprentissage supervisé (il ne s'agit pas d'un modèle prédictif entraîné), mais nous avions besoin d'un ensemble de validation pour évaluer, pendant le développement, les performances intermédiaires de notre pipeline. L'ensemble de test est quant à lui utilisé pour l'évaluation finale.
+
+Le découpage a été effectué à l’aide d’un **stratified split**, c’est-à-dire en préservant les proportions des catégories (`Peu`, `Moyen`, `Beaucoup`, `Extrême`) dans chacun des sous-ensembles. Cette stratification garantit que les deux ensembles restent représentatifs de la diversité des situations présentes dans notre base de données, tout en évitant que certaines catégories soient sous-représentées dans l’un ou l’autre.
+
+**Répartition obtenue :**
+| Catégorie | Total | Validation set | Test set |
+|:---------:|:----:|:--------------:|:-------:|
+| Peu      | 17   | 5              | 12      |
+| Moyen    | 45   | 13             | 32      |
+| Beaucoup | 28   | 8              | 20      |
+| Extrême  | 3    | 1              | 2       |
+| **Total** | 93   | 27             | 66      |
+
+Cette démarche nous permet de garantir une évaluation objective, en évitant que les résultats soient biaisés par un déséquilibre ou une homogénéité excessive des images d’évaluation.
+
+---
+
+Parfait, tu veux faire ce qu'on appelle une **évaluation différenciée selon la difficulté** (ce que ton prof a d'ailleurs suggéré).
+
+Voici une section complète, propre, que tu peux ajouter à ton README, juste après la section "Découpage et analyse des données" :
+
+---
+
+## Annotation de la difficulté et évaluation différenciée
+
+Au-delà du nombre de marches, nous avons également choisi d’introduire une **catégorie qualitative de difficulté** pour chaque image, afin d’affiner l’analyse de nos résultats et de mieux interpréter les performances de notre méthode.
+
+Cette difficulté a été annotée **manuellement** en fonction de plusieurs critères visuels observés dans les images :
+- **Présence d'obstacles** ou objets partiellement obstruant les marches.
+- **Perspective compliquée** (vue non frontale, fort angle). 
+- **Éloignement important de l'escalier** ou marches très petites visuellement.
+
+À partir de ces observations, chaque image a été classée dans l'une des trois catégories suivantes :
+| Difficulté | Description |
+|:---------:|:-----------------------------------------------------------:|
+| Facile   | Escalier bien visible, peu d'obstacles, perspective frontale. |
+| Moyenne  | Quelques obstacles, marches partiellement visibles, bruit modéré. |
+| Difficile| Obstruction importante, perspective difficile, qualité dégradée.  |
+
+Cette information a été ajoutée dans le fichier **annotations.csv** sous la colonne `difficulty`.
+
+### Objectif de cette catégorisation
+
+L’objectif de cette annotation est la suivante :
+- **Évaluation fine** : mesurer la performance de notre méthode non seulement sur l’ensemble du test set, mais aussi séparément pour les images "Facile", "Moyenne" et "Difficile".
+
+
+---
+
 ## Tentatives avec des méthodes classiques 
 
 Au cours du développement, nous avons également expérimenté l'utilisation de la **Transformée de Hough** pour détecter les marches, en appliquant la détection de droites sur les images de contours.
