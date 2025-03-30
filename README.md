@@ -150,10 +150,6 @@ MAE : 0.33
 
 ---
 
-Très bien, voici une **section complète, bien formulée** que tu peux intégrer dans ton README, adaptée à un rendu universitaire rigoureux :
-
----
-
 ## Découpage et analyse des données
 
 ### Analyse des classes et catégorisation
