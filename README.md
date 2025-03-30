@@ -133,20 +133,6 @@ Les erreurs proviennent principalement :
 **Aucun apprentissage automatique n'a été utilisé.**  
 L'ensemble du traitement repose sur des méthodes classiques et déterministes de traitement d’image.
 
----
-
-## Exemple de sortie
-
-```
-Image : Groupe2_Image11.jpg | Détecté : 7 | Vérité terrain : 7
-Image : Groupe3_Image02.jpg | Détecté : 6 | Vérité terrain : 7
-Image : Groupe1_Image05.jpg | Détecté : 8 | Vérité terrain : 8
-
-=== Résultats ===
-MSE : 0.33
-MAE : 0.33
-```
-
 
 ---
 
