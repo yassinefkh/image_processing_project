@@ -192,11 +192,6 @@ Le découpage a été effectué à l’aide d’un **stratified split**, c’est
 
 Cette démarche nous permet de garantir une évaluation objective, en évitant que les résultats soient biaisés par un déséquilibre ou une homogénéité excessive des images d’évaluation.
 
----
-
-Parfait, tu veux faire ce qu'on appelle une **évaluation différenciée selon la difficulté** (ce que ton prof a d'ailleurs suggéré).
-
-Voici une section complète, propre, que tu peux ajouter à ton README, juste après la section "Découpage et analyse des données" :
 
 ---
 
