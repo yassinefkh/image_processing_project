@@ -84,37 +84,72 @@ Le programme :
 
 ## Détails techniques
 
+### **Description de notre méthodologie**
+
+Notre approche repose sur un pipeline classique de traitement d'image, suivi d'une analyse de profil de profondeur pour estimer le nombre de marches présentes sur chaque image. Voici les différentes étapes :
+
+---
+
 ### 1. **Prétraitement**
 
-L'image en niveaux de gris subit :
-- Un **flou gaussien** (pour réduire le bruit).
-- Une **égalisation adaptative (CLAHE)** pour améliorer le contraste local.
+Chaque image est d'abord convertie en **niveaux de gris**, puis soumise à deux traitements :
+- **Flou gaussien** : permet de **réduire le bruit local** et les petites irrégularités susceptibles de perturber la détection des contours.
+- **Égalisation adaptative de l'histogramme (CLAHE)** : améliore localement le **contraste** pour rendre les contours plus visibles, même en cas d'éclairage hétérogène.
+
+---
 
 ### 2. **Détection des contours**
 
-Les contours sont extraits via des filtres de **Sobel** appliqués sur l'image prétraitée.
+Nous appliquons un filtre de **Sobel** sur l'image prétraitée pour détecter les gradients d'intensité, révélateurs des **contours des marches**.  
+Le résultat est ensuite seuillé afin d'obtenir une image binaire où seuls les contours marquants sont conservés.
+
+---
 
 ### 3. **Analyse en Composantes Principales (PCA)**
 
-Les points de contour sont utilisés pour estimer l'axe principal de l'escalier :
-- Le **vecteur directionnel principal** est calculé.
+L'étape clé suivante consiste à **analyser la structure géométrique des contours** :
+- Nous extrayons les **coordonnées des points de contour** détectés.
+- Nous appliquons une **Analyse en Composantes Principales (PCA)** sur ces points pour :
+  - Calculer le **centre de gravité** des contours.
+  - Identifier la **direction principale** des contours, c'est-à-dire l'axe le long duquel la variance des points est maximale.  
+  Cet axe correspond à l'**orientation dominante de l'escalier** sur l'image.
+
+---
 
 ### 4. **Extraction du profil de profondeur**
 
-Un profil est extrait en échantillonnant les valeurs de la depth map le long de la ligne PCA.
+À partir de la direction principale obtenue par PCA :
+- Nous **échantillonnons les valeurs de la carte de profondeur** (depth map) le long de cette ligne.
+- Ce **profil de profondeur** reflète les variations de hauteur associées aux différentes marches de l'escalier.
 
-### 5. **Détection des transitions (marches)**
+Le profil est sauvegardé sous forme d'un fichier CSV.
 
-Le fichier Python `peak.py` :
-- Lisse le profil avec un **filtre gaussien**.
-- Utilise la fonction `find_peaks` de **scipy** avec une **prominence adaptative**.
-- Identifie les positions de transitions (marches) et enregistre le nombre détecté dans `result.txt`.
+---
+
+### 5. **Détection des transitions (marches) sur les Depth Maps**
+
+L'analyse du profil est réalisée par un **script Python** (`peak.py`) qui procède comme suit :
+- **Lissage du profil** à l'aide d'un **filtre gaussien** pour atténuer les variations parasites.
+- Application de la fonction `find_peaks` de la bibliothèque **scipy.signal** pour détecter les **creux (ou pics)** correspondant aux transitions entre les marches.
+- Un seuil de **prominence adaptative** est utilisé, afin de tenir compte de la variabilité du profil.
+- Le **nombre de marches détecté** est sauvegardé dans un fichier texte (`result.txt`).
+
+---
 
 ### 6. **Évaluation**
 
-À la fin, le programme calcule :
-- **MSE (Mean Squared Error)** : moyenne des carrés des écarts entre le nombre détecté et la vérité terrain.
-- **MAE (Mean Absolute Error)** : moyenne des valeurs absolues des écarts.
+Pour évaluer les performances de notre méthode, nous comparons le nombre de marches détecté avec la **vérité terrain** issue des annotations manuelles.
+
+Nous calculons deux métriques classiques d'erreur :
+- **MAE (Mean Absolute Error)** : moyenne des écarts absolus entre le nombre détecté et le nombre réel de marches.
+  
+  > Le MAE est privilégié ici car il s'agit d'une **tâche de régression** : nous estimons un **nombre** (de marches) et non une classe.  
+  > L'accuracy ou les scores classiques de classification ne sont pas adaptés.  
+  > Le MAE fournit une information claire : « en moyenne, combien d’erreurs de comptage faisons-nous par image ».
+
+- **MSE (Mean Squared Error)** : moyenne des carrés des écarts.
+  
+  > Le MSE est également calculé pour information, mais il est moins pertinent dans notre cas : il est très sensible aux **erreurs extrêmes** (il punit fortement les grosses erreurs) et masque les tendances globales.
 
 ---
 
