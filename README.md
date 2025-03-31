@@ -307,6 +307,47 @@ Par comparaison, la méthode que nous avons retenue, basée sur les **profils de
 
 Cette méthode exploite donc l'information supplémentaire contenue dans la **depth map**, ce qui la rend plus performante, mais aussi **moins généralisable** à des cas où les informations de profondeur seraient indisponibles ou imprécises.
 
+---
+
+### Perspectives et pistes d’amélioration
+
+Notre approche actuelle repose sur un enchaînement de méthodes déterministes de traitement d'image, couplé à une détection de motifs basée sur l’analyse du profil de profondeur. Plusieurs axes d'amélioration sont envisageables, aussi bien sur la **chaîne de traitement d'image** que sur l'étape critique de **comptage des pics**.
+
+#### 1. Optimisation du comptage de pics
+
+Un élément essentiel de notre pipeline réside dans l’utilisation de la fonction `find_peaks` de la bibliothèque **SciPy**. Ce module joue un rôle central, car il réalise l'étape finale d’interprétation des résultats en détectant les **transitions du profil de profondeur** qui correspondent aux marches.
+
+Actuellement, les paramètres de détection (prominence adaptative, distance minimale) sont choisis empiriquement, avec un compromis entre sensibilité et robustesse. Plusieurs pistes pourraient améliorer cette étape :
+- **Analyse plus fine des paramètres de détection** (par image, voire dynamique en fonction du profil).
+- Utilisation de méthodes avancées de **post-traitement des pics** (suppression de doublons, regroupement de pics voisins, validation locale par forme du profil).
+- Intégration d'autres techniques de **détection de motifs périodiques**, comme les transformées de Fourier.
+
+Ces améliorations permettraient d’exploiter davantage l'information contenue dans le signal extrait, indépendamment du prétraitement des images.
+
+---
+
+#### 2. Renforcement du pipeline de traitement d’image
+
+La fiabilité du profil de profondeur dépend directement de la qualité du traitement d’image en amont. Plusieurs pistes pourraient être explorées pour rendre cette étape plus robuste et adaptable :
+
+- **Catégorisation automatique du type d’image** :  
+  Nous avons constaté que certaines images comportent un escalier très "zoomé", occupant l'intégralité du cadre. Ce type d'image nuit à la robustesse du **PCA**, car la structure globale n'est plus identifiable.  
+  Une piste serait d'appliquer un **clustering** simple sur des descripteurs basiques (taille des contours, occupation du cadre…) pour séparer ces cas et adapter la méthode.
+
+
+---
+
+#### 3. Validation croisée via Hough Transform et depth map
+
+Une piste que nous avons commencé à explorer, mais que nous n’avons pas pu intégrer faute de temps, consiste à combiner notre méthode avec une détection classique par **Transformée de Hough** :
+- Détection des lignes droites sur les contours prétraités.
+- **Filtrage des droites** par des critères géométriques (orientation proche de l’horizontale, longueur minimale, parallélisme…).
+- Pour chaque droite conservée, **validation par la carte de profondeur** :
+  - Tracer une droite **orthogonale** à la ligne détectée.
+  - Échantillonner les valeurs de profondeur le long de cette droite.
+  - Vérifier la cohérence du profil de profondeur avec la structure attendue d’une marche.
+
+Cette double validation (par géométrie et profondeur) permettrait d’améliorer significativement la robustesse de la détection, notamment dans les cas d’escaliers complexes ou d’images bruitées.
 
 ---
 
