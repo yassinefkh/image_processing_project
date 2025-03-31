@@ -59,6 +59,7 @@
   "files.associations": {
     "*.embeddedhtml": "html",
     "vector": "cpp",
-    "iosfwd": "cpp"
+    "iosfwd": "cpp",
+    "map": "cpp"
   }
 }

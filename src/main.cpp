@@ -8,7 +8,7 @@
 #include <cmath>
 #include <thread>
 #include <chrono>
-#include "/home/augustepl/Desktop/MASTER/S2/ANALYSE_IMAGE/PROJET/image_processing_project/include/ImageUtils.hpp"
+#include "include/ImageUtils.hpp"
 
 namespace fs = std::filesystem;
 
@@ -170,7 +170,6 @@ int main() {
                 std::string imagePath;
                 std::string depthPath;
 
-                // Try different extensions for the input image
                 const std::vector<std::string> extensions = {".jpg", ".jpeg", ".png", ".bmp"};
                 bool imageFound = false;
 
@@ -247,7 +246,7 @@ int main() {
                     double bestAngle = 0;
                     
                     for (int angle = -90; angle <= 90; angle += 10) {
-                        if (angle == 0) continue; // Skip 0 same as vertical
+                        if (angle == 0) continue; 
                         
                         auto rotatedProfile = ImageUtils::extractRotatedProfile(depthMap, angle);
                         ImageUtils::exportProfile(rotatedProfile, "profil.csv");
@@ -313,7 +312,6 @@ int main() {
                 mses.push_back(mse);
                 validSamples.emplace_back(imageName, trueCount, difficulty, category);
 
-                // Write to results CSV
                 if (resultsFile.is_open()) {
                     resultsFile << imageName << ","
                               << trueCount << ","
@@ -334,7 +332,7 @@ int main() {
             }
         } else {
             
-            std::cout << "No test set found. Using all images from ground truth." << std::endl;
+            std::cout << "Aucun ensemble de test n'a été trouvé. Utilisation de toutes les images de la vérité terrain." << std::endl;
         }
 
         if (resultsFile.is_open()) {
@@ -362,9 +360,9 @@ int main() {
         mseTotal /= detectedSteps.size();
         double accuracy = 100.0 * exactMatches / detectedSteps.size();
 
-        // Calculate MAE per difficulty level
+        // calcul le MAE par difficulté
         std::map<std::string, std::vector<double>> difficultyMaes;
-        // Calculate MAE per category
+        // calcul le MAE par catégorie
         std::map<std::string, std::vector<double>> categoryMaes;
 
         for (size_t i = 0; i < validSamples.size(); ++i) {
@@ -401,7 +399,7 @@ int main() {
             std::cout << "Catégorie " << category << " (" << errors.size() << " images): MAE = " << avgMae << std::endl;
         }
 
-        // Save metrics to file
+        // sauvegarde des métriques
         std::ofstream metricsFile(outputDir + "/metrics.txt");
         if (metricsFile.is_open()) {
             metricsFile << "Images traitées: " << detectedSteps.size() << std::endl;
@@ -464,7 +462,7 @@ int main() {
             metricsFile.close();
         }
 
-        // Sauvegarde CSV détaillé
+        // sauvegarde CSV détaillé
         std::ofstream out("data/test_set_evaluated.csv");
         out << "image,steps,difficulty,category,mae,mse\n";
         for (size_t i = 0; i < validSamples.size(); ++i) {
