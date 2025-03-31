@@ -136,7 +136,7 @@ int main() {
             fs::create_directory(outputDir);
         }
 
-        // Load both ground truth and test set
+    
         auto groundTruth = loadGroundTruth(csvPath);
         auto testSet = loadTestSet(testCsvPath);
         
@@ -157,7 +157,6 @@ int main() {
         std::vector<double> mses;
         std::vector<std::tuple<std::string, int, std::string, std::string>> validSamples;
 
-        // Process images based on test set if available, otherwise use all images from ground truth
         if (!testSet.empty()) {
             std::cout << "Using test set with " << testSet.size() << " images" << std::endl;
             
@@ -183,7 +182,7 @@ int main() {
                     }
                 }
                 
-                // Also try the exact filename as provided
+    
                 if (!imageFound && fs::exists(imgFolder + "/" + imageName)) {
                     imagePath = imgFolder + "/" + imageName;
                     imageFound = true;
@@ -194,7 +193,7 @@ int main() {
                     continue;
                 }
 
-                // Try different extensions for the depth map
+                
                 bool depthFound = false;
                 for (const auto& ext : extensions) {
                     if (fs::exists(depthFolder + "/" + nameWithoutExt + "_depth" + ext)) {
@@ -233,22 +232,22 @@ int main() {
                 int detected = executePythonScript();
                 std::string methodUsed = "PCA";
 
-                // If less than 3 steps detected, try alternative profiles
+            
                 if (detected < 3) {
-                    std::cout << "Moins de 3 marches détectées, essai de techniques alternatives..." << std::endl;
+                    std::cout << "Moins de 3 marches détectées, essai de techniques alternatives : " << std::endl;
                     
-                    // Try vertical profile
+                    // vertical profile
                     auto verticalProfile = ImageUtils::extractVerticalProfile(depthMap);
                     ImageUtils::exportProfile(verticalProfile, "profil.csv");
                     int verticalSteps = executePythonScript();
                     std::cout << "Profil vertical: " << verticalSteps << " marches" << std::endl;
                     
-                    // Try rotated profiles at different angles
+                    // rotated profiles 
                     int bestRotatedSteps = 0;
                     double bestAngle = 0;
                     
                     for (int angle = -90; angle <= 90; angle += 10) {
-                        if (angle == 0) continue; // Skip 0 as it's the same as vertical
+                        if (angle == 0) continue; // Skip 0 same as vertical
                         
                         auto rotatedProfile = ImageUtils::extractRotatedProfile(depthMap, angle);
                         ImageUtils::exportProfile(rotatedProfile, "profil.csv");
@@ -261,7 +260,7 @@ int main() {
                         }
                     }
                     
-                    // Select the best result (highest step count)
+                    
                     
                     if (verticalSteps > detected && verticalSteps >= bestRotatedSteps) {
                         detected = verticalSteps;
@@ -279,7 +278,7 @@ int main() {
                     std::cerr << "Détection échouée pour " << imageName << "." << std::endl;
                     continue;
                 }
-
+/*
                 // Create visualization
                 cv::Mat visualization;
                 cv::cvtColor(depthMap, visualization, cv::COLOR_GRAY2BGR);
@@ -304,6 +303,7 @@ int main() {
                 // Save visualization
                 std::string visPath = outputDir + "/" + nameWithoutExt + "_detection.jpg";
                 cv::imwrite(visPath, visualization);
+*/
 
                 double mae = std::abs(detected - trueCount);
                 double mse = std::pow(detected - trueCount, 2);
@@ -333,11 +333,8 @@ int main() {
                           << std::endl;
             }
         } else {
-            // Process all images from ground truth
-            std::cout << "No test set found. Using all images from ground truth." << std::endl;
             
-            // Implementation for processing from ground truth if needed
-            // ...
+            std::cout << "No test set found. Using all images from ground truth." << std::endl;
         }
 
         if (resultsFile.is_open()) {
@@ -349,7 +346,6 @@ int main() {
             return 1;
         }
 
-        // Calculate global metrics
         double maeTotal = 0.0;
         double mseTotal = 0.0;
         int exactMatches = 0;
