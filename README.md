@@ -84,37 +84,70 @@ Le programme :
 
 ## Détails techniques
 
+### **Description de notre méthodologie**
+
+Notre approche repose sur un pipeline classique de traitement d'image, suivi d'une analyse de profil de profondeur pour estimer le nombre de marches présentes sur chaque image. Voici les différentes étapes :
+
 ### 1. **Prétraitement**
 
-L'image en niveaux de gris subit :
-- Un **flou gaussien** (pour réduire le bruit).
-- Une **égalisation adaptative (CLAHE)** pour améliorer le contraste local.
+Chaque image est d'abord convertie en **niveaux de gris**, puis soumise à deux traitements :
+- **Flou gaussien** : permet de **réduire le bruit local** et les petites irrégularités susceptibles de perturber la détection des contours.
+- **Égalisation adaptative de l'histogramme (CLAHE)** : améliore localement le **contraste** pour rendre les contours plus visibles, même en cas d'éclairage hétérogène.
+
+---
 
 ### 2. **Détection des contours**
 
-Les contours sont extraits via des filtres de **Sobel** appliqués sur l'image prétraitée.
+Nous appliquons un filtre de **Sobel** sur l'image prétraitée pour détecter les gradients d'intensité, révélateurs des **contours des marches**.  
+Le résultat est ensuite seuillé afin d'obtenir une image binaire où seuls les contours marquants sont conservés.
+
+---
 
 ### 3. **Analyse en Composantes Principales (PCA)**
 
-Les points de contour sont utilisés pour estimer l'axe principal de l'escalier :
-- Le **vecteur directionnel principal** est calculé.
+L'étape clé suivante consiste à **analyser la structure géométrique des contours** :
+- Nous extrayons les **coordonnées des points de contour** détectés.
+- Nous appliquons une **Analyse en Composantes Principales (PCA)** sur ces points pour :
+  - Calculer le **centre de gravité** des contours.
+  - Identifier la **direction principale** des contours, c'est-à-dire l'axe le long duquel la variance des points est maximale.  
+  Cet axe correspond à l'**orientation dominante de l'escalier** sur l'image.
+
+---
 
 ### 4. **Extraction du profil de profondeur**
 
-Un profil est extrait en échantillonnant les valeurs de la depth map le long de la ligne PCA.
+À partir de la direction principale obtenue par PCA :
+- Nous **échantillonnons les valeurs de la carte de profondeur** (depth map) le long de cette ligne.
+- Ce **profil de profondeur** reflète les variations de hauteur associées aux différentes marches de l'escalier.
 
-### 5. **Détection des transitions (marches)**
+Le profil est sauvegardé sous forme d'un fichier CSV.
 
-Le fichier Python `peak.py` :
-- Lisse le profil avec un **filtre gaussien**.
-- Utilise la fonction `find_peaks` de **scipy** avec une **prominence adaptative**.
-- Identifie les positions de transitions (marches) et enregistre le nombre détecté dans `result.txt`.
+---
+
+### 5. **Détection des transitions (marches) sur les Depth Maps**
+
+L'analyse du profil est réalisée par un **script Python** (`peak.py`) qui procède comme suit :
+- **Lissage du profil** à l'aide d'un **filtre gaussien** pour atténuer les variations parasites.
+- Application de la fonction `find_peaks` de la bibliothèque **scipy.signal** pour détecter les **creux (ou pics)** correspondant aux transitions entre les marches.
+- Un seuil de **prominence adaptative** est utilisé, afin de tenir compte de la variabilité du profil.
+- Le **nombre de marches détecté** est sauvegardé dans un fichier texte (`result.txt`).
+
+---
 
 ### 6. **Évaluation**
 
-À la fin, le programme calcule :
-- **MSE (Mean Squared Error)** : moyenne des carrés des écarts entre le nombre détecté et la vérité terrain.
-- **MAE (Mean Absolute Error)** : moyenne des valeurs absolues des écarts.
+Pour évaluer les performances de notre méthode, nous comparons le nombre de marches détecté avec la **vérité terrain** issue des annotations manuelles.
+
+Nous calculons deux métriques classiques d'erreur :
+- **MAE (Mean Absolute Error)** : moyenne des écarts absolus entre le nombre détecté et le nombre réel de marches.
+  
+  > Le MAE est privilégié ici car il s'agit d'une **tâche de régression** : nous estimons un **nombre** (de marches) et non une classe.  
+  > L'accuracy ou les scores classiques de classification ne sont pas adaptés.  
+  > Le MAE fournit une information claire : « en moyenne, combien d’erreurs de comptage faisons-nous par image ».
+
+- **MSE (Mean Squared Error)** : moyenne des carrés des écarts.
+  
+  > Le MSE est également calculé pour information, mais il est moins pertinent dans notre cas : il est très sensible aux **erreurs extrêmes** (il punit fortement les grosses erreurs) et masque les tendances globales.
 
 ---
 
@@ -274,6 +307,47 @@ Par comparaison, la méthode que nous avons retenue, basée sur les **profils de
 
 Cette méthode exploite donc l'information supplémentaire contenue dans la **depth map**, ce qui la rend plus performante, mais aussi **moins généralisable** à des cas où les informations de profondeur seraient indisponibles ou imprécises.
 
+---
+
+### Perspectives et pistes d’amélioration
+
+Notre approche actuelle repose sur un enchaînement de méthodes déterministes de traitement d'image, couplé à une détection de motifs basée sur l’analyse du profil de profondeur. Plusieurs axes d'amélioration sont envisageables, aussi bien sur la **chaîne de traitement d'image** que sur l'étape critique de **comptage des pics**.
+
+#### 1. Optimisation du comptage de pics
+
+Un élément essentiel de notre pipeline réside dans l’utilisation de la fonction `find_peaks` de la bibliothèque **SciPy**. Ce module joue un rôle central, car il réalise l'étape finale d’interprétation des résultats en détectant les **transitions du profil de profondeur** qui correspondent aux marches.
+
+Actuellement, les paramètres de détection (prominence adaptative, distance minimale) sont choisis empiriquement, avec un compromis entre sensibilité et robustesse. Plusieurs pistes pourraient améliorer cette étape :
+- **Analyse plus fine des paramètres de détection** (par image, voire dynamique en fonction du profil).
+- Utilisation de méthodes avancées de **post-traitement des pics** (suppression de doublons, regroupement de pics voisins, validation locale par forme du profil).
+- Intégration d'autres techniques de **détection de motifs périodiques**, comme les transformées de Fourier.
+
+Ces améliorations permettraient d’exploiter davantage l'information contenue dans le signal extrait, indépendamment du prétraitement des images.
+
+---
+
+#### 2. Renforcement du pipeline de traitement d’image
+
+La fiabilité du profil de profondeur dépend directement de la qualité du traitement d’image en amont. Plusieurs pistes pourraient être explorées pour rendre cette étape plus robuste et adaptable :
+
+- **Catégorisation automatique du type d’image** :  
+  Nous avons constaté que certaines images comportent un escalier très "zoomé", occupant l'intégralité du cadre. Ce type d'image nuit à la robustesse du **PCA**, car la structure globale n'est plus identifiable.  
+  Une piste serait d'appliquer un **clustering** simple sur des descripteurs basiques (taille des contours, occupation du cadre…) pour séparer ces cas et adapter la méthode.
+
+
+---
+
+#### 3. Validation croisée via Hough Transform et depth map
+
+Une piste que nous avons commencé à explorer, mais que nous n’avons pas pu intégrer faute de temps, consiste à combiner notre méthode avec une détection classique par **Transformée de Hough** :
+- Détection des lignes droites sur les contours prétraités.
+- **Filtrage des droites** par des critères géométriques (orientation proche de l’horizontale, longueur minimale, parallélisme…).
+- Pour chaque droite conservée, **validation par la carte de profondeur** :
+  - Tracer une droite **orthogonale** à la ligne détectée.
+  - Échantillonner les valeurs de profondeur le long de cette droite.
+  - Vérifier la cohérence du profil de profondeur avec la structure attendue d’une marche.
+
+Cette double validation (par géométrie et profondeur) permettrait d’améliorer significativement la robustesse de la détection, notamment dans les cas d’escaliers complexes ou d’images bruitées.
 
 ---
 
@@ -282,4 +356,4 @@ Cette méthode exploite donc l'information supplémentaire contenue dans la **de
 Projet réalisé dans le cadre du Master 1 Informatique -  Vision et Machine Intelligente (VMI)  
 **Matière : Introduction à l'Analyse d'images - KURTZ Camille**  
 Année universitaire 2024-2025
-
+CALMANOVIC-PLESCOFF Auguste, FEKIH HASSEN Yassine.
