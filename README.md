@@ -88,8 +88,6 @@ Le programme :
 
 Notre approche repose sur un pipeline classique de traitement d'image, suivi d'une analyse de profil de profondeur pour estimer le nombre de marches présentes sur chaque image. Voici les différentes étapes :
 
----
-
 ### 1. **Prétraitement**
 
 Chaque image est d'abord convertie en **niveaux de gris**, puis soumise à deux traitements :
