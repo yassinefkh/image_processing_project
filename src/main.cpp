@@ -178,7 +178,7 @@ int main() {
                     int bestRotatedSteps = 0;
                     double bestAngle = 0;
                     
-                    for (int angle = -90; angle <= 90; angle += 20) {
+                    for (int angle = -90; angle <= 90; angle += 10) {
                         auto rotatedProfile = ImageUtils::extractRotatedProfile(depthMap, angle);
                         ImageUtils::exportProfile(rotatedProfile, "profil.csv");
                         int rotatedSteps = executePythonScript();
@@ -229,9 +229,7 @@ int main() {
                 cv::putText(visualization, resultText, cv::Point(10, 30), 
                           cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
                 
-                // Save visualization image
-                cv::imwrite(outputDir + "/" + nameWithoutExt + "_result.jpg", visualization);
-
+               
                 detectedSteps.push_back(numDetected);
                 trueSteps.push_back(groundTruth[nameWithoutExt]);
 

@@ -1,0 +1,4 @@
+Images traitées: 93
+Prédictions exactes: 19 (20.4301%)
+MSE: 39.6129
+MAE: 3.54839
