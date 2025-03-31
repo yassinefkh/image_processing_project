@@ -18,19 +18,28 @@ L’approche mise en œuvre repose exclusivement sur des **techniques classiques
 ## Structure du projet
 
 ```
-projet/
+image_processing_project/
 ├── data/
-│   ├── img/               # Images d'entrée (.jpg ou .png)
-│   ├── depth/             # Cartes de profondeur correspondantes (_depth.png)
-│   └── annotations.csv    # Fichier CSV contenant le nombre réel de marches par image
+│   ├── img/                   # Images d'entrée (.jpg ou .png)
+│   ├── depth/                 # Cartes de profondeur correspondantes (_depth.png)
+│   ├── annotations.csv        # Vérités terrain : nombre réel de marches par image
+│   ├── val_set.csv            # Fichier CSV du set de validation (généré par divide.py)
+│   ├── test_set.csv           # Fichier CSV du set de test (généré par divide.py)
+│   └── test_set_evaluated.csv # Résultats d'évaluation avec MAE et MSE par image
 ├── include/
-│   └── ImageUtils.hpp     # Déclarations des fonctions utilitaires
+│   └── ImageUtils.hpp         # Déclarations des fonctions utilitaires
 ├── src/
-│   ├── ImageUtils.cpp     # Implémentation des fonctions de traitement d'image
-│   └── main.cpp           # Programme principal
-├── peak.py                # Script Python de détection des transitions dans le profil
-├── Makefile               # Fichier de compilation
-└── README.md              
+│   ├── ImageUtils.cpp         # Implémentation des fonctions de traitement d'image
+│   ├── main.cpp               # Programme principal (pipeline de traitement + détection)
+│   └── evaluation_main.cpp    # Programme d'évaluation (calcule les erreurs et génère test_set_evaluated.csv)
+├── scripts/                   # Scripts Python annexes pour préparation et analyse
+│   ├── divide.py              # Script de division stratifiée en val/test
+│   ├── evaluation.py          # Script d'analyse des résultats et métriques globales/par difficulté
+│   └── plot.py                # Script pour générer les visualisations (corrélations, histogrammes, etc.)
+├── peak.py                    # Détection des pics sur le profil de profondeur
+├── Makefile                   # Fichier de compilation C++
+└── README.md                  # Documentation du projet
+           
 ```
 
 ---
