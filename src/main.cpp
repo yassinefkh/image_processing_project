@@ -429,6 +429,38 @@ int main() {
                 metricsFile << "Catégorie " << category << " (" << errors.size() << " images): MAE = " << avgMae << std::endl;
             }
             
+        
+            std::map<std::string, std::vector<double>> difficultyMses;
+            std::map<std::string, std::vector<double>> categoryMses;
+            
+            for (size_t i = 0; i < validSamples.size(); ++i) {
+                const auto& sample = validSamples[i];
+                std::string diff = std::get<2>(sample);
+                std::string cat = std::get<3>(sample);
+                difficultyMses[diff].push_back(mses[i]);
+                categoryMses[cat].push_back(mses[i]);
+            }
+            
+            metricsFile << "\n=== MSE par niveau de difficulté ===\n";
+            for (const auto& [difficulty, errors] : difficultyMses) {
+                double avgMse = 0.0;
+                for (double mse : errors) {
+                    avgMse += mse;
+                }
+                avgMse /= errors.size();
+                metricsFile << "Difficulté " << difficulty << " (" << errors.size() << " images): MSE = " << avgMse << std::endl;
+            }
+            
+            metricsFile << "\n=== MSE par catégorie ===\n";
+            for (const auto& [category, errors] : categoryMses) {
+                double avgMse = 0.0;
+                for (double mse : errors) {
+                    avgMse += mse;
+                }
+                avgMse /= errors.size();
+                metricsFile << "Catégorie " << category << " (" << errors.size() << " images): MSE = " << avgMse << std::endl;
+            }
+            
             metricsFile.close();
         }
 

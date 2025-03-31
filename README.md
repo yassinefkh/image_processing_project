@@ -260,24 +260,44 @@ C'est pourquoi, pour analyser les performances, nous nous basons principalement 
 
 L'évaluation globale sur l'ensemble du test set donne les résultats suivants :
 
+Par difficulté : 
+
 | Difficulté | Nombre d'images | MAE  | MSE   |
 |----------:|:--------------:|:----:|:----:|
-| Easy     | 36            | 3.22 | 28.50 |
-| Medium   | 12            | 4.50 | 66.67 |
-| Hard     | 5             | 6.20 | 121.00 |
-| **Global** | **53**        | **3.79** | **45.87** |
+| Easy     | 46            | 2.78 | 20.087 |
+| Medium   | 12            | 3.91 | 65.25|
+| Hard     | 8             | 4.87 | 78.375 |
+| **Global** | **66**        | **3.24** | **35.36** |
 
+Par Catégorie : 
+
+| Catégorie | Nombre d'images | MAE  | MSE   |
+|----------:|:--------------:|:----:|:----:|
+| Peu       | 12            | 2.33 | 15.00 |
+| Moyen     | 32            | 1.94 | 6.13  |
+| Beaucoup  | 20            | 3.70 | 35.30 |
+| Extreme   | 2             | 25.00| 626.00|
+| **Global** | **66**        | **3.24** | **35.36** |
 ---
 
 ### Analyse
 
-Nous avons également réalisé une évaluation **stratifiée** selon la difficulté visuelle des images (catégorie fournie manuellement) :
+Nous avons réalisé une évaluation **stratifiée** selon la difficulté visuelle des images (catégorie fournie manuellement) :
 - **Easy :** Bonnes performances avec un MAE faible. Les images sont simples, bien cadrées, et l'estimation est généralement correcte.
 - **Medium :** L'erreur augmente légèrement, souvent en raison de marches peu visibles ou de depth maps bruitées.
 - **Hard :** Les erreurs sont élevées. Cela s'explique par la présence d'images avec obstacles, angles extrêmes ou artefacts visuels ne respectant pas nos hypothèses (vue de face, escalier droit).
 
 Cette analyse démontre que la difficulté visuelle impacte directement les performances.  
 De plus, les cas extrêmes ont une **influence disproportionnée sur le MSE** par rapport au MAE. C’est pourquoi nous privilégions le MAE, qui reflète mieux l’erreur moyenne réelle.
+
+Nous avons également analysé les performances selon la **catégorie de quantité de marches** :
+- **Moyen :** Excellentes performances avec le MAE le plus bas (1.94) et un MSE très faible (6.13). Ces images représentent la majorité du dataset (32 images).
+- **Peu :** Bonnes performances avec un MAE de 2.33. Ces images sont généralement bien traitées par notre modèle.
+- **Beaucoup :** Performance moyenne avec un MAE de 3.70. L'augmentation du nombre de marches rend l'estimation plus complexe.
+- **Extreme :** Très mauvaises performances (MAE de 25.00, MSE de 626.00). Cependant, cette catégorie ne contient que 2 images, ce qui explique ce résultat exceptionnel qui impacte fortement la moyenne globale.
+
+Ces résultats montrent que notre modèle est particulièrement efficace pour estimer un nombre moyen de marches, mais perd en précision pour les cas extrêmes qui sortent de la distribution principale du dataset.
+
 
 ---
 

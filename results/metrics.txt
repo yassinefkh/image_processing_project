@@ -8,8 +8,24 @@ Difficulté easy (46 images): MAE = 2.78261
 Difficulté hard (8 images): MAE = 4.875
 Difficulté medium (12 images): MAE = 3.91667
 
+=== MAE par niveau de difficulté ===
+Difficulté easy (46 images): MAE = 2.78261
+Difficulté hard (8 images): MAE = 4.875
+Difficulté medium (12 images): MAE = 3.91667
+
 === MAE par catégorie ===
 Catégorie beaucoup (20 images): MAE = 3.7
 Catégorie extreme (2 images): MAE = 25
 Catégorie moyen (32 images): MAE = 1.9375
 Catégorie peu (12 images): MAE = 2.33333
+
+=== MSE par niveau de difficulté ===
+Difficulté easy (46 images): MSE = 20.087
+Difficulté hard (8 images): MSE = 78.375
+Difficulté medium (12 images): MSE = 65.25
+
+=== MSE par catégorie ===
+Catégorie beaucoup (20 images): MSE = 35.3
+Catégorie extreme (2 images): MSE = 626
+Catégorie moyen (32 images): MSE = 6.125
+Catégorie peu (12 images): MSE = 15
