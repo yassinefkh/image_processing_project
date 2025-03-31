@@ -269,7 +269,7 @@ Par difficulté :
 | Hard     | 8             | 4.87 | 78.375 |
 | **Global** | **66**        | **3.24** | **35.36** |
 
-Par Catégorie : 
+Par catégorie : 
 
 | Catégorie | Nombre d'images | MAE  | MSE   |
 |----------:|:--------------:|:----:|:----:|
