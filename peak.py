@@ -44,7 +44,6 @@ if len(peaks) == 0:
 # affichage optionnel 
 """
 import matplotlib.pyplot as plt
-
 plt.figure(figsize=(10, 5))
 plt.plot(depth_values, label="Profil de profondeur", alpha=0.5)
 plt.plot(smoothed_values, label="Profil lissé", linewidth=2, color="orange")
@@ -55,7 +54,7 @@ plt.legend()
 plt.title("Détection des transitions (marches)")
 plt.grid()
 plt.show()
-"""
+""" 
 
 print(f"Nombre de marches détectées : {len(peaks)}")
 

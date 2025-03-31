@@ -1,4 +1,15 @@
-Images traitées: 93
-Prédictions exactes: 19 (20.4301%)
-MSE: 39.6129
-MAE: 3.54839
+Images traitées: 66
+Prédictions exactes: 14 (21.2121%)
+MAE global: 3.24242
+MSE global: 35.3636
+
+=== MAE par niveau de difficulté ===
+Difficulté easy (46 images): MAE = 2.78261
+Difficulté hard (8 images): MAE = 4.875
+Difficulté medium (12 images): MAE = 3.91667
+
+=== MAE par catégorie ===
+Catégorie beaucoup (20 images): MAE = 3.7
+Catégorie extreme (2 images): MAE = 25
+Catégorie moyen (32 images): MAE = 1.9375
+Catégorie peu (12 images): MAE = 2.33333

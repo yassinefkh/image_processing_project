@@ -18,7 +18,7 @@ public:
     
     static std::vector<double> extractVerticalProfile(const cv::Mat& depthMap);
     static std::vector<double> extractRotatedProfile(const cv::Mat& depthMap, double angle);
-
+    
 };
 
 #endif
