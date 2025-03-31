@@ -15,6 +15,10 @@ public:
     static std::vector<double> extractDepthProfile(const cv::Mat& depthMap, const cv::Point2d& mean, const cv::Point2d& dir, std::vector<cv::Point>& profilePoints);
     static void exportProfile(const std::vector<double>& depthValues, const std::string& filename);
     static std::vector<int> detectTransitions(const std::vector<double>& signal);
+    
+    static std::vector<double> extractVerticalProfile(const cv::Mat& depthMap);
+    static std::vector<double> extractRotatedProfile(const cv::Mat& depthMap, double angle);
+
 };
 
 #endif

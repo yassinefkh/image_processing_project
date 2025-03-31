@@ -1,4 +1,5 @@
-#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
+#include "/home/augustepl/Desktop/MASTER/S2/ANALYSE_IMAGE/PROJET/image_processing_project/include/ImageUtils.hpp"
+
 #include <opencv2/opencv.hpp>
 #include <fstream>
 #include <numeric>
@@ -142,4 +143,55 @@ std::vector<double> ImageUtils::extractDepthProfile(const cv::Mat& depthMap, con
         }
     }
     return depthValues;
+}
+
+/**
+ * @brief Extrait un profil de profondeur vertical au centre de l'image
+ * 
+ * @param depthMap Carte de profondeur
+ * @return Vecteur contenant les valeurs de profondeur
+ */
+std::vector<double> ImageUtils::extractVerticalProfile(const cv::Mat& depthMap) {
+    std::vector<double> profile;
+    int centerX = depthMap.cols / 2;
+    
+    for (int y = 0; y < depthMap.rows; y++) {
+        profile.push_back(static_cast<double>(depthMap.at<uchar>(y, centerX)));
+    }
+    
+    return profile;
+}
+
+/**
+ * @brief Extrait un profil de profondeur selon un angle spécifié
+ * 
+ * @param depthMap Carte de profondeur
+ * @param angle Angle de rotation en degrés
+ * @return Vecteur contenant les valeurs de profondeur
+ */
+std::vector<double> ImageUtils::extractRotatedProfile(const cv::Mat& depthMap, double angle) {
+    // Rotation center
+    cv::Point2f center(depthMap.cols / 2.0f, depthMap.rows / 2.0f);
+    
+    // Create rotation matrix
+    cv::Mat rotMatrix = cv::getRotationMatrix2D(center, angle, 1.0);
+    
+    // Calculate new image size
+    cv::Rect2f bbox = cv::RotatedRect(center, depthMap.size(), angle).boundingRect2f();
+    rotMatrix.at<double>(0, 2) += bbox.width/2.0 - center.x;
+    rotMatrix.at<double>(1, 2) += bbox.height/2.0 - center.y;
+    
+    // Perform rotation
+    cv::Mat rotatedDepth;
+    cv::warpAffine(depthMap, rotatedDepth, rotMatrix, bbox.size());
+    
+    // Extract vertical profile from center of rotated image
+    std::vector<double> profile;
+    int centerX = rotatedDepth.cols / 2;
+    
+    for (int y = 0; y < rotatedDepth.rows; y++) {
+        profile.push_back(static_cast<double>(rotatedDepth.at<uchar>(y, centerX)));
+    }
+    
+    return profile;
 }

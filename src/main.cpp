@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
-#include "/Volumes/SSD/M1VMI/S2/image_processing/env/projet/include/ImageUtils.hpp"
+#include "/home/augustepl/Desktop/MASTER/S2/ANALYSE_IMAGE/PROJET/image_processing_project/include/ImageUtils.hpp"
 
 namespace fs = std::filesystem;
 
@@ -87,12 +87,18 @@ std::map<std::string, int> loadGroundTruth(const std::string& csvPath) {
  * 
  * Chargement des images et des cartes de profondeur, traitement par PCA et profil de profondeur,
  * exécution du script Python pour détection, et calcul des métriques d'erreur.
+ * Utilise des techniques alternatives si moins de 3 marches sont détectées.
  */
 int main() {
     try {
         std::string imgFolder = "data/img";
         std::string depthFolder = "data/depth";
         std::string csvPath = "data/annotations.csv";
+        std::string outputDir = "results";
+
+        if (!fs::exists(outputDir)) {
+            fs::create_directory(outputDir);
+        }
 
         auto groundTruth = loadGroundTruth(csvPath);
         if (groundTruth.empty()) {
@@ -102,6 +108,12 @@ int main() {
 
         std::vector<int> detectedSteps;
         std::vector<int> trueSteps;
+
+    
+        std::ofstream resultsFile(outputDir + "/results.csv");
+        if (resultsFile.is_open()) {
+            resultsFile << "Image,TrueSteps,DetectedSteps,Method,Error\n";
+        }
 
         for (const auto& entry : fs::directory_iterator(imgFolder)) {
             if (entry.is_regular_file()) {
@@ -142,25 +154,108 @@ int main() {
                     continue;
                 }
 
+        
                 auto [mean, principalVector] = ImageUtils::computePCA(points);
                 std::vector<cv::Point> profilePoints;
                 auto depthValues = ImageUtils::extractDepthProfile(depthMap, mean, principalVector, profilePoints);
                 ImageUtils::exportProfile(depthValues, "profil.csv");
+                std::cout << "Profil de profondeur exporté dans profil.csv" << std::endl;
 
                 int numDetected = executePythonScript();
+                std::string methodUsed = "PCA";
+
+                // If less than 3 steps detected, try alternative profiles
+                if (numDetected < 3) {
+                    std::cout << "Moins de 3 marches détectées, essai de techniques alternatives..." << std::endl;
+                    
+                    // Try vertical profile
+                    auto verticalProfile = ImageUtils::extractVerticalProfile(depthMap);
+                    ImageUtils::exportProfile(verticalProfile, "profil.csv");
+                    int verticalSteps = executePythonScript();
+                    std::cout << "Profil vertical: " << verticalSteps << " marches" << std::endl;
+                    
+                    // Try rotated profiles at different angles
+                    int bestRotatedSteps = 0;
+                    double bestAngle = 0;
+                    
+                    for (int angle = -90; angle <= 90; angle += 20) {
+                        auto rotatedProfile = ImageUtils::extractRotatedProfile(depthMap, angle);
+                        ImageUtils::exportProfile(rotatedProfile, "profil.csv");
+                        int rotatedSteps = executePythonScript();
+                        std::cout << "Rotation " << angle << "°: " << rotatedSteps << " marches" << std::endl;
+                        
+                        if (rotatedSteps > bestRotatedSteps) {
+                            bestRotatedSteps = rotatedSteps;
+                            bestAngle = angle;
+                        }
+                    }
+                    
+                    // Select the best result (highest step count)
+                    if (verticalSteps > numDetected && verticalSteps >= bestRotatedSteps) {
+                        numDetected = verticalSteps;
+                        methodUsed = "Vertical";
+                        std::cout << "Selection: profil vertical (" << numDetected << " marches)" << std::endl;
+                    }
+                    else if (bestRotatedSteps > numDetected) {
+                        numDetected = bestRotatedSteps;
+                        methodUsed = "Rotation " + std::to_string(static_cast<int>(bestAngle)) + "°";
+                        std::cout << "Selection: profil rotation " << bestAngle << "° (" << numDetected << " marches)" << std::endl;
+                    }
+                }
+
                 if (numDetected < 0) {
                     std::cerr << "Échec détection pour " << imageName << "." << std::endl;
                     continue;
                 }
 
+                // Save visualization
+                cv::Mat visualization;
+                cv::cvtColor(depthMap, visualization, cv::COLOR_GRAY2BGR);
+                
+                // Draw line and profile points on visualization
+                cv::Point pt1, pt2;
+                std::tie(pt1, pt2) = ImageUtils::computeLineEndpoints(mean, principalVector, depthMap.cols, depthMap.rows);
+                cv::line(visualization, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+                
+                for (const auto& point : profilePoints) {
+                    cv::circle(visualization, point, 2, cv::Scalar(0, 0, 255), -1);
+                }
+                
+                // Add text with results
+                std::string resultText = "Détecté: " + std::to_string(numDetected) + 
+                                      " | Réel: " + std::to_string(groundTruth[nameWithoutExt]) +
+                                      " | Méthode: " + methodUsed;
+                
+                cv::putText(visualization, resultText, cv::Point(10, 30), 
+                          cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
+                
+                // Save visualization image
+                cv::imwrite(outputDir + "/" + nameWithoutExt + "_result.jpg", visualization);
+
                 detectedSteps.push_back(numDetected);
                 trueSteps.push_back(groundTruth[nameWithoutExt]);
 
-                std::cout << "Image : " << imageName
-                          << " | Détecté : " << numDetected
-                          << " | Vérité terrain : " << groundTruth[nameWithoutExt]
+                int error = std::abs(numDetected - groundTruth[nameWithoutExt]);
+                
+                // Write to results CSV
+                if (resultsFile.is_open()) {
+                    resultsFile << imageName << ","
+                              << groundTruth[nameWithoutExt] << ","
+                              << numDetected << ","
+                              << methodUsed << ","
+                              << error << "\n";
+                }
+
+                std::cout << ">> Image: " << imageName
+                          << " | Détecté: " << numDetected
+                          << " | Vérité terrain: " << groundTruth[nameWithoutExt]
+                          << " | Méthode: " << methodUsed
                           << std::endl;
             }
+        }
+
+        if (resultsFile.is_open()) {
+            resultsFile.close();
         }
 
         if (detectedSteps.empty()) {
@@ -169,19 +264,38 @@ int main() {
         }
 
         double mse = 0.0, mae = 0.0;
+        int exactMatches = 0;
+        
         for (size_t i = 0; i < detectedSteps.size(); i++) {
             mse += std::pow(detectedSteps[i] - trueSteps[i], 2);
             mae += std::abs(detectedSteps[i] - trueSteps[i]);
+            if (detectedSteps[i] == trueSteps[i]) {
+                exactMatches++;
+            }
         }
+        
         mse /= detectedSteps.size();
         mae /= detectedSteps.size();
+        double accuracy = 100.0 * exactMatches / detectedSteps.size();
 
         std::cout << "\n=== Résultats ===\n";
-        std::cout << "MSE : " << mse << std::endl;
-        std::cout << "MAE : " << mae << std::endl;
+        std::cout << "Images traitées: " << detectedSteps.size() << std::endl;
+        std::cout << "Prédictions exactes: " << exactMatches << " (" << accuracy << "%)" << std::endl;
+        std::cout << "MSE: " << mse << std::endl;
+        std::cout << "MAE: " << mae << std::endl;
+        
+        // Save metrics to file
+        std::ofstream metricsFile(outputDir + "/metrics.txt");
+        if (metricsFile.is_open()) {
+            metricsFile << "Images traitées: " << detectedSteps.size() << std::endl;
+            metricsFile << "Prédictions exactes: " << exactMatches << " (" << accuracy << "%)" << std::endl;
+            metricsFile << "MSE: " << mse << std::endl;
+            metricsFile << "MAE: " << mae << std::endl;
+            metricsFile.close();
+        }
 
     } catch (const std::exception& e) {
-        std::cerr << "Erreur : " << e.what() << std::endl;
+        std::cerr << "Erreur: " << e.what() << std::endl;
         return 1;
     }
     return 0;
