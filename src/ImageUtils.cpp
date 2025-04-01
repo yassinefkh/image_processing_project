@@ -1,4 +1,4 @@
-#include "/home/augustepl/Desktop/MASTER/S2/ANALYSE_IMAGE/PROJET/image_processing_project/include/ImageUtils.hpp"
+#include "/include/ImageUtils.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <fstream>
